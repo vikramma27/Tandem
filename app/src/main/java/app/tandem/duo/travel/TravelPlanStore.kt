@@ -9,6 +9,8 @@ data class TravelPlan(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
     val recipient: String,
+    val pairId: String? = null,
+    val recipientUserId: String? = null,
     val departureAt: Long,
     val reminderAt: Long,
     val checklist: List<TravelChecklistItem>,
@@ -36,6 +38,8 @@ object TravelPlanStore {
                     id = obj.getString("id"),
                     title = obj.getString("title"),
                     recipient = obj.optString("recipient", "Me"),
+                    pairId = obj.optString("pairId").takeIf { it.isNotBlank() },
+                    recipientUserId = obj.optString("recipientUserId").takeIf { it.isNotBlank() },
                     departureAt = obj.getLong("departureAt"),
                     reminderAt = obj.getLong("reminderAt"),
                     createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
@@ -69,6 +73,8 @@ object TravelPlanStore {
                     .put("id", plan.id)
                     .put("title", plan.title)
                     .put("recipient", plan.recipient)
+                    .put("pairId", plan.pairId.orEmpty())
+                    .put("recipientUserId", plan.recipientUserId.orEmpty())
                     .put("departureAt", plan.departureAt)
                     .put("reminderAt", plan.reminderAt)
                     .put("createdAt", plan.createdAt)
