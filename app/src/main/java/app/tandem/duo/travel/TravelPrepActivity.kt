@@ -291,6 +291,7 @@ private suspend fun syncRemotePlans(
         TravelPlanStore.delete(context, it.id)
     }
     records.forEach { record ->
+        val wasAlreadySaved = TravelPlanStore.all(context).any { it.id == record.id }
         val checklist = TandemSupabase.loadChecklist(record.id).map {
             TravelChecklistItem(id = it.id, title = it.title, isDone = it.isDone)
         }
@@ -308,8 +309,12 @@ private suspend fun syncRemotePlans(
             checklist = checklist
         )
         TravelPlanStore.save(context, local)
-        if (isRecipient) TravelReminderScheduler.schedule(context, local)
-        else TravelReminderScheduler.cancel(context, local)
+        if (isRecipient) {
+            TravelReminderScheduler.schedule(context, local)
+            if (!wasAlreadySaved && TravelPlanStore.markSharedNotificationShown(context, local.id)) {
+                TravelReminderScheduler.notifyPlanShared(context, local)
+            }
+        } else TravelReminderScheduler.cancel(context, local)
     }
 }
 
