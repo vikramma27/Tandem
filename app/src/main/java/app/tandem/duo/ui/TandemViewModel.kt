@@ -7,6 +7,7 @@ import app.tandem.duo.data.local.*
 import app.tandem.duo.data.sync.DuoSyncEngine
 import app.tandem.duo.data.remote.TandemSupabase
 import io.github.jan.supabase.auth.user.UserInfo
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
