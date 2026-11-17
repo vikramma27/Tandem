@@ -1,1 +1,1 @@
-Retry the one-time expansion workflow after confirming the workflow file is present.
+Run extraction with workflow-file push handled separately.
