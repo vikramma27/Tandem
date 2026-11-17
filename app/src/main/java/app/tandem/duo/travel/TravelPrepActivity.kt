@@ -182,6 +182,8 @@ private fun TravelPrepScreen() {
                                 if (plan.pairId != null) {
                                     (context as? ComponentActivity)?.lifecycleScope?.launch {
                                         runCatching { TandemSupabase.deleteTravelPlan(plan.id) }
+                                            .onSuccess { TravelPlanStore.markDeleteSynced(context, plan.id) }
+                                            .onFailure { syncMessage = "Delete queued. It will sync when this phone reconnects." }
                                     }
                                 }
                                 refresh()
@@ -199,7 +201,10 @@ private fun TravelPrepScreen() {
                                     val uid = currentUserId
                                     if (uid != null) {
                                         (context as? ComponentActivity)?.lifecycleScope?.launch {
-                                            runCatching { pushRemoteTravelPlan(updated, uid) }
+                                            runCatching {
+                                                pushRemoteTravelPlan(updated, uid)
+                                                TravelPlanStore.markSynced(context, updated.id)
+                                            }.onFailure { syncMessage = "Checklist saved here. It will sync when this phone reconnects." }
                                         }
                                     }
                                 })
@@ -250,8 +255,11 @@ private fun TravelPrepScreen() {
                 refresh()
                 showCreate = false
                 (context as? ComponentActivity)?.lifecycleScope?.launch {
-                    runCatching { pushRemoteTravelPlan(plan, uid) }
-                        .onFailure { syncMessage = "Saved on this phone; cloud sync will retry when connected." }
+                    runCatching {
+                        pushRemoteTravelPlan(plan, uid)
+                        TravelPlanStore.markSynced(context, plan.id)
+                        syncMessage = "Your shared travel plan is up to date."
+                    }.onFailure { syncMessage = "Saved on this phone; cloud sync is queued for retry." }
                 }
             }
         )
@@ -297,12 +305,14 @@ private suspend fun syncRemotePlans(
     partnerName: String
 ) {
     val remoteIds = records.map { it.id }.toSet()
-    TravelPlanStore.all(context).filter { it.pairId == pairId && it.id !in remoteIds }.forEach {
+    TravelPlanStore.all(context).filter { it.pairId == pairId && it.id !in remoteIds && !it.needsSync }.forEach {
         TravelReminderScheduler.cancel(context, it)
-        TravelPlanStore.delete(context, it.id)
+        TravelPlanStore.delete(context, it.id, queueRemoteDelete = false)
     }
     records.forEach { record ->
-        val wasAlreadySaved = TravelPlanStore.all(context).any { it.id == record.id }
+        val existingLocal = TravelPlanStore.all(context).firstOrNull { it.id == record.id }
+        if (existingLocal?.needsSync == true) return@forEach
+        val wasAlreadySaved = existingLocal != null
         val checklist = TandemSupabase.loadChecklist(record.id).map {
             TravelChecklistItem(id = it.id, title = it.title, isDone = it.isDone)
         }
@@ -319,7 +329,7 @@ private suspend fun syncRemotePlans(
             reminderAt = reminder,
             checklist = checklist
         )
-        TravelPlanStore.save(context, local)
+        TravelPlanStore.save(context, local, markDirty = false)
         if (isRecipient) {
             TravelReminderScheduler.schedule(context, local)
             if (!wasAlreadySaved && TravelPlanStore.markSharedNotificationShown(context, local.id)) {
@@ -489,6 +499,18 @@ class TravelSyncWorker(
             val membership = TandemSupabase.currentPair() ?: return Result.success()
             val partner = TandemSupabase.pairProfiles(membership.pairId)
                 .firstOrNull { it.id != user.id }?.displayName?.ifBlank { "Partner" } ?: "Partner"
+            // Replay locally queued deletes first so a reconnect cannot resurrect a removed plan.
+            TravelPlanStore.pendingDeletes(applicationContext, membership.pairId).forEach { planId ->
+                TandemSupabase.deleteTravelPlan(planId)
+                TravelPlanStore.markDeleteSynced(applicationContext, planId)
+            }
+            // Push locally edited plans before pulling snapshots from the server.
+            TravelPlanStore.all(applicationContext)
+                .filter { it.pairId == membership.pairId && it.needsSync }
+                .forEach { plan ->
+                    pushRemoteTravelPlan(plan, user.id)
+                    TravelPlanStore.markSynced(applicationContext, plan.id)
+                }
             val plans = TandemSupabase.loadTravelPlans(membership.pairId)
             syncRemotePlans(applicationContext, membership.pairId, plans, user.id, partner)
         }.fold(
