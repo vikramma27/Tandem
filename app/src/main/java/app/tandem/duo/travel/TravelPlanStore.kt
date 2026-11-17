@@ -61,6 +61,14 @@ object TravelPlanStore {
         persist(context, all(context).filterNot { it.id == id })
     }
 
+    fun markSharedNotificationShown(context: Context, planId: String): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val key = "shared_notified_$planId"
+        if (prefs.getBoolean(key, false)) return false
+        prefs.edit().putBoolean(key, true).apply()
+        return true
+    }
+
     private fun persist(context: Context, plans: List<TravelPlan>) {
         val array = JSONArray()
         plans.forEach { plan ->
