@@ -11,16 +11,19 @@ data class TravelPlan(
     val recipient: String,
     val pairId: String? = null,
     val recipientUserId: String? = null,
+    val createdByUserId: String? = null,
     val departureAt: Long,
     val reminderAt: Long,
     val checklist: List<TravelChecklistItem>,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 data class TravelChecklistItem(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
-    val isDone: Boolean = false
+    val isDone: Boolean = false,
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 object TravelPlanStore {
@@ -40,12 +43,14 @@ object TravelPlanStore {
                     recipient = obj.optString("recipient", "Me"),
                     pairId = obj.optString("pairId").takeIf { it.isNotBlank() },
                     recipientUserId = obj.optString("recipientUserId").takeIf { it.isNotBlank() },
+                    createdByUserId = obj.optString("createdByUserId").takeIf { it.isNotBlank() },
                     departureAt = obj.getLong("departureAt"),
                     reminderAt = obj.getLong("reminderAt"),
                     createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                    updatedAt = obj.optLong("updatedAt", obj.optLong("createdAt", 0L)),
                     checklist = (0 until tasks.length()).map { j ->
                         val task = tasks.getJSONObject(j)
-                        TravelChecklistItem(task.getString("id"), task.getString("title"), task.optBoolean("isDone"))
+                        TravelChecklistItem(task.getString("id"), task.getString("title"), task.optBoolean("isDone"), task.optLong("updatedAt", 0L))
                     }
                 )
             }.sortedBy { it.departureAt }
@@ -74,7 +79,7 @@ object TravelPlanStore {
         plans.forEach { plan ->
             val tasks = JSONArray()
             plan.checklist.forEach { item ->
-                tasks.put(JSONObject().put("id", item.id).put("title", item.title).put("isDone", item.isDone))
+                tasks.put(JSONObject().put("id", item.id).put("title", item.title).put("isDone", item.isDone).put("updatedAt", item.updatedAt))
             }
             array.put(
                 JSONObject()
@@ -83,9 +88,11 @@ object TravelPlanStore {
                     .put("recipient", plan.recipient)
                     .put("pairId", plan.pairId.orEmpty())
                     .put("recipientUserId", plan.recipientUserId.orEmpty())
+                    .put("createdByUserId", plan.createdByUserId.orEmpty())
                     .put("departureAt", plan.departureAt)
                     .put("reminderAt", plan.reminderAt)
                     .put("createdAt", plan.createdAt)
+                    .put("updatedAt", plan.updatedAt)
                     .put("checklist", tasks)
             )
         }
