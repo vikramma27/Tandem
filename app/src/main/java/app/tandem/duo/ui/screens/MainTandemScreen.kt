@@ -694,16 +694,9 @@ private fun AddItemModalSheet(
     isPaired: Boolean,
     onDismiss: () -> Unit,
     onSubmit: (
-        title: String,
-        note: String,
-        mode: ListMode,
-        assignedTo: MemberSlot,
-        urgency: UrgencyLevel,
-        qty: String,
-        unit: String,
-        aisle: ShoppingAisle,
-        cost: Double,
-        store: String
+        title: String, note: String, mode: ListMode, assignedTo: MemberSlot,
+        urgency: UrgencyLevel, qty: String, unit: String, aisle: ShoppingAisle,
+        cost: Double, store: String
     ) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
@@ -715,51 +708,75 @@ private fun AddItemModalSheet(
     var unit by remember { mutableStateOf("pc") }
     var priceText by remember { mutableStateOf("") }
     var store by remember { mutableStateOf("") }
+    var aisle by remember { mutableStateOf(ShoppingAisle.PRODUCE) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CharcoalSurface,
-        titleContentColor = IvoryText,
-        title = { Text("New Item", style = MaterialTheme.typography.titleLarge) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        title = { Text(if (mode == ListMode.SHOPPING) "Add to shopping" else "Add to your shared list") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Title") },
-                    singleLine = true
+                    value = title, onValueChange = { title = it },
+                    label = { Text(if (mode == ListMode.SHOPPING) "What do you need?" else "What needs doing?") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("Notes / Details") }
+                    value = note, onValueChange = { note = it },
+                    label = { Text("A little more detail (optional)") },
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ListMode.entries.take(3).forEach { m ->
-                        FilterPill(label = m.badge, selected = mode == m, onClick = { mode = m })
+                Text("Type", style = MaterialTheme.typography.labelLarge)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ListMode.entries.take(3).forEach { option ->
+                        FilterChip(
+                            selected = mode == option,
+                            onClick = {
+                                mode = option
+                                if (option == ListMode.ASK_PARTNER && isPaired) assignee = MemberSlot.PARTNER
+                            },
+                            label = { Text(option.label) }
+                        )
                     }
                 }
                 if (isPaired) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterPill(label = selfLabel, selected = assignee == MemberSlot.SELF, onClick = { assignee = MemberSlot.SELF })
-                        FilterPill(label = partnerLabel, selected = assignee == MemberSlot.PARTNER, onClick = { assignee = MemberSlot.PARTNER })
-                        FilterPill(label = "Both", selected = assignee == MemberSlot.BOTH, onClick = { assignee = MemberSlot.BOTH })
+                    Text("Who is this for?", style = MaterialTheme.typography.labelLarge)
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = assignee == MemberSlot.SELF, onClick = { assignee = MemberSlot.SELF }, label = { Text(selfLabel) })
+                        FilterChip(selected = assignee == MemberSlot.PARTNER, onClick = { assignee = MemberSlot.PARTNER }, label = { Text(partnerLabel) })
+                        FilterChip(selected = assignee == MemberSlot.BOTH, onClick = { assignee = MemberSlot.BOTH }, label = { Text("Both") })
                     }
                 }
-                AnimatedVisibility(visible = mode == ListMode.SHOPPING) {
+                Text("Priority", style = MaterialTheme.typography.labelLarge)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    UrgencyLevel.entries.forEach { option ->
+                        FilterChip(selected = urgency == option, onClick = { urgency = option }, label = { Text(option.label) })
+                    }
+                }
+                if (mode == ListMode.SHOPPING) {
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Text("Shopping details", style = MaterialTheme.typography.titleSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = qty,
-                            onValueChange = { qty = it },
-                            label = { Text("Qty") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = priceText,
-                            onValueChange = { priceText = it },
-                            label = { Text("Est. Price") },
-                            modifier = Modifier.weight(1f)
-                        )
+                        OutlinedTextField(value = qty, onValueChange = { qty = it }, label = { Text("Quantity") }, modifier = Modifier.weight(1f), singleLine = true)
+                        OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text("Unit") }, modifier = Modifier.weight(1f), singleLine = true)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Estimated cost") }, modifier = Modifier.weight(1f), singleLine = true)
+                        OutlinedTextField(value = store, onValueChange = { store = it }, label = { Text("Store") }, modifier = Modifier.weight(1f), singleLine = true)
+                    }
+                    Text("Aisle", style = MaterialTheme.typography.labelLarge)
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ShoppingAisle.entries.forEach { option ->
+                            FilterChip(
+                                selected = aisle == option,
+                                onClick = { aisle = option },
+                                label = { Text(option.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }) }
+                            )
+                        }
                     }
                 }
             }
@@ -767,27 +784,12 @@ private fun AddItemModalSheet(
         confirmButton = {
             Button(
                 onClick = {
-                    onSubmit(
-                        title,
-                        note,
-                        mode,
-                        assignee,
-                        urgency,
-                        qty,
-                        unit,
-                        ShoppingAisle.PRODUCE,
-                        priceText.toDoubleOrNull() ?: 0.0,
-                        store
-                    )
+                    onSubmit(title.trim(), note.trim(), mode, assignee, urgency, qty, unit, aisle, priceText.toDoubleOrNull() ?: 0.0, store.trim())
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = TerracottaCoral, contentColor = ObsidianBg)
-            ) {
-                Text("ADD", fontWeight = FontWeight.Bold)
-            }
+                enabled = title.isNotBlank()
+            ) { Text("Add item") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL", color = MutedPewter) }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
