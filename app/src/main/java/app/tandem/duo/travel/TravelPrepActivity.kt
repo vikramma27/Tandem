@@ -32,6 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import app.tandem.duo.ui.theme.TandemTheme
+import app.tandem.duo.data.remote.TandemSupabase
+import app.tandem.duo.data.remote.TravelPlanRecord
+import app.tandem.duo.data.remote.TravelChecklistRecord
+import java.time.Instant
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -53,10 +57,42 @@ private fun TravelPrepScreen() {
     var plans by remember { mutableStateOf(TravelPlanStore.all(context)) }
     var showCreate by remember { mutableStateOf(false) }
     var showReliability by remember { mutableStateOf(false) }
+    var currentUserId by remember { mutableStateOf<String?>(null) }
+    var pairId by remember { mutableStateOf<String?>(null) }
+    var partnerUserId by remember { mutableStateOf<String?>(null) }
+    var partnerName by remember { mutableStateOf("Partner") }
+    var syncMessage by remember { mutableStateOf("Connecting to your shared space…") }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val dateFormat = remember { SimpleDateFormat("EEE, dd MMM • hh:mm a", Locale.getDefault()) }
 
     fun refresh() { plans = TravelPlanStore.all(context) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            val user = TandemSupabase.currentUser() ?: error("Sign in to sync your travel plans.")
+            currentUserId = user.id
+            val membership = TandemSupabase.currentPair()
+            if (membership == null) {
+                syncMessage = "Pair with your second person in Tandem to share travel plans."
+            } else {
+                pairId = membership.pairId
+                val profiles = TandemSupabase.pairProfiles(membership.pairId)
+                val partner = profiles.firstOrNull { it.id != user.id }
+                partnerUserId = partner?.id
+                partnerName = partner?.displayName?.ifBlank { "Partner" } ?: "Partner"
+                syncMessage = "Connected • plans sync across both phones"
+                val initial = TandemSupabase.loadTravelPlans(membership.pairId)
+                syncRemotePlans(context, membership.pairId, initial, user.id, partnerName)
+                refresh()
+                TandemSupabase.watchTravelPlans(membership.pairId).collect { updated ->
+                    syncRemotePlans(context, membership.pairId, updated, user.id, partnerName)
+                    refresh()
+                }
+            }
+        }.onFailure {
+            syncMessage = it.message ?: "Travel sync is temporarily unavailable. Your saved plans remain on this phone."
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -67,7 +103,12 @@ private fun TravelPrepScreen() {
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { showCreate = true }, icon = { Icon(Icons.Default.Add, null) }, text = { Text("PLAN A DEPARTURE") })
+            ExtendedFloatingActionButton(
+                onClick = { showCreate = true },
+                enabled = pairId != null && currentUserId != null,
+                icon = { Icon(Icons.Default.Add, null) },
+                text = { Text("PLAN A DEPARTURE") }
+            )
         }
     ) { padding ->
         LazyColumn(
@@ -79,7 +120,26 @@ private fun TravelPrepScreen() {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("A little care before they leave.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Create a departure plan, add the essentials, and schedule a reminder on this phone. Checklist progress is saved on this device.", style = MaterialTheme.typography.bodyMedium)
+                        Text("Create a departure plan, choose who is travelling, and keep the checklist in sync on both phones. The traveller's phone schedules the local reminders.", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+            item {
+                Card {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(syncMessage, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            if (pairId == null) {
+                item {
+                    Card {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Connect your second person first", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("Open Tandem → profile / pairing, create an invite code and connect your partner. Travel Prep will then become a shared space.", style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }
@@ -90,7 +150,7 @@ private fun TravelPrepScreen() {
                             Icon(Icons.Default.FlightTakeoff, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.height(8.dp))
                             Text("No departures planned yet", fontWeight = FontWeight.SemiBold)
-                            Text("Plan a trip and build a checklist for the person travelling.", style = MaterialTheme.typography.bodySmall)
+                            Text("Plan a trip and build a checklist together.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -106,6 +166,11 @@ private fun TravelPrepScreen() {
                             IconButton(onClick = {
                                 TravelReminderScheduler.cancel(context, plan)
                                 TravelPlanStore.delete(context, plan.id)
+                                if (plan.pairId != null) {
+                                    (context as? ComponentActivity)?.lifecycleScope?.launch {
+                                        runCatching { TandemSupabase.deleteTravelPlan(plan.id) }
+                                    }
+                                }
                                 refresh()
                             }) { Icon(Icons.Default.Delete, contentDescription = "Delete plan") }
                         }
@@ -118,12 +183,19 @@ private fun TravelPrepScreen() {
                                     val updated = plan.copy(checklist = plan.checklist.map { if (it.id == task.id) it.copy(isDone = checked) else it })
                                     TravelPlanStore.save(context, updated)
                                     refresh()
+                                    val uid = currentUserId
+                                    if (uid != null) {
+                                        (context as? ComponentActivity)?.lifecycleScope?.launch {
+                                            runCatching { pushRemoteTravelPlan(updated, uid) }
+                                        }
+                                    }
                                 })
                                 Text(task.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                                 if (task.isDone) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             }
                         }
                         Text("Reminder: ${dateFormat.format(Date(plan.reminderAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Shared with ${if (plan.recipientUserId == currentUserId) "you" else partnerName}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                     }
                 }
             }
@@ -137,23 +209,105 @@ private fun TravelPrepScreen() {
         }
     }
 
-    if (showCreate) {
+    if (showCreate && pairId != null && currentUserId != null) {
+        val recipientOptions = buildList {
+            add(currentUserId!! to "Me")
+            partnerUserId?.let { add(it to partnerName) }
+        }
         CreateTravelPlanDialog(
+            recipientOptions = recipientOptions,
             onDismiss = { showCreate = false },
-            onCreate = { title, recipient, departureAt, reminderAt, checklist ->
-                val plan = TravelPlan(title = title, recipient = recipient, departureAt = departureAt, reminderAt = reminderAt, checklist = checklist)
+            onCreate = { title, recipientId, recipientLabel, departureAt, reminderAt, checklist ->
+                val pair = pairId!!
+                val uid = currentUserId!!
+                val plan = TravelPlan(
+                    title = title,
+                    recipient = recipientLabel,
+                    pairId = pair,
+                    recipientUserId = recipientId,
+                    departureAt = departureAt,
+                    reminderAt = reminderAt,
+                    checklist = checklist
+                )
                 TravelPlanStore.save(context, plan)
-                TravelReminderScheduler.schedule(context, plan)
+                if (recipientId == uid) TravelReminderScheduler.schedule(context, plan)
                 if (Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
                     permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
                 refresh()
                 showCreate = false
+                (context as? ComponentActivity)?.lifecycleScope?.launch {
+                    runCatching { pushRemoteTravelPlan(plan, uid) }
+                        .onFailure { syncMessage = "Saved on this phone; cloud sync will retry when connected." }
+                }
             }
         )
     }
     if (showReliability) {
         NotificationReliabilityDialog(onDismiss = { showReliability = false })
+    }
+}
+
+private suspend fun pushRemoteTravelPlan(plan: TravelPlan, currentUserId: String) {
+    val pair = plan.pairId ?: return
+    val record = TravelPlanRecord(
+        id = plan.id,
+        pairId = pair,
+        createdBy = currentUserId,
+        recipientUserId = plan.recipientUserId,
+        title = plan.title,
+        departureAt = Instant.ofEpochMilli(plan.departureAt).toString(),
+        reminderAt = Instant.ofEpochMilli(plan.reminderAt).toString(),
+        timezone = java.util.TimeZone.getDefault().id,
+        updatedAt = Instant.now().toString()
+    )
+    val checklist = plan.checklist.mapIndexed { index, item ->
+        TravelChecklistRecord(
+            id = item.id,
+            planId = plan.id,
+            title = item.title,
+            sortOrder = index,
+            isDone = item.isDone,
+            completedBy = if (item.isDone) currentUserId else null,
+            completedAt = if (item.isDone) Instant.now().toString() else null,
+            updatedAt = Instant.now().toString()
+        )
+    }
+    TandemSupabase.saveTravelPlan(record, checklist)
+}
+
+private suspend fun syncRemotePlans(
+    context: android.content.Context,
+    pairId: String,
+    records: List<TravelPlanRecord>,
+    currentUserId: String,
+    partnerName: String
+) {
+    val remoteIds = records.map { it.id }.toSet()
+    TravelPlanStore.all(context).filter { it.pairId == pairId && it.id !in remoteIds }.forEach {
+        TravelReminderScheduler.cancel(context, it)
+        TravelPlanStore.delete(context, it.id)
+    }
+    records.forEach { record ->
+        val checklist = TandemSupabase.loadChecklist(record.id).map {
+            TravelChecklistItem(id = it.id, title = it.title, isDone = it.isDone)
+        }
+        val departure = Instant.parse(record.departureAt).toEpochMilli()
+        val reminder = record.reminderAt?.let { Instant.parse(it).toEpochMilli() } ?: departure
+        val isRecipient = record.recipientUserId == currentUserId
+        val local = TravelPlan(
+            id = record.id,
+            title = record.title,
+            recipient = if (isRecipient) "Me" else partnerName,
+            pairId = record.pairId,
+            recipientUserId = record.recipientUserId,
+            departureAt = departure,
+            reminderAt = reminder,
+            checklist = checklist
+        )
+        TravelPlanStore.save(context, local)
+        if (isRecipient) TravelReminderScheduler.schedule(context, local)
+        else TravelReminderScheduler.cancel(context, local)
     }
 }
 
