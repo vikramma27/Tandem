@@ -2,7 +2,7 @@ name: Android APK
 
 on:
   push:
-    branches: [main, feature/travel-prep-v1.1.0]
+    branches: [main, feature/travel-prep-v1.1.0, feature/tandem-ui-ux-v1.2.0, feature/tandem-ui-ux-v1.2.0-final]
   pull_request:
     branches: [main, feature/travel-prep-v1.1.0]
   workflow_dispatch:
