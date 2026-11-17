@@ -176,16 +176,22 @@ private fun TravelPrepScreen() {
                                 Text(plan.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text("For ${plan.recipient} • Departure ${dateFormat.format(Date(plan.departureAt))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            IconButton(onClick = {
-                                TravelReminderScheduler.cancel(context, plan)
-                                TravelPlanStore.delete(context, plan.id)
-                                if (plan.pairId != null) {
+                            if (plan.createdByUserId == currentUserId) {
+                                IconButton(onClick = {
+                                    TravelReminderScheduler.cancel(context, plan)
+                                    TravelPlanStore.delete(context, plan.id)
+                                    refresh()
                                     (context as? ComponentActivity)?.lifecycleScope?.launch {
                                         runCatching { TandemSupabase.deleteTravelPlan(plan.id) }
+                                            .onFailure {
+                                                TravelPlanStore.save(context, plan)
+                                                TravelReminderScheduler.schedule(context, plan)
+                                                refresh()
+                                                syncMessage = "Could not delete the shared plan. It has been restored on this phone."
+                                            }
                                     }
-                                }
-                                refresh()
-                            }) { Icon(Icons.Default.Delete, contentDescription = "Delete plan") }
+                                }) { Icon(Icons.Default.Delete, contentDescription = "Delete plan") }
+                            }
                         }
                         val done = plan.checklist.count { it.isDone }
                         LinearProgressIndicator(progress = { if (plan.checklist.isEmpty()) 0f else done.toFloat() / plan.checklist.size }, modifier = Modifier.fillMaxWidth())
@@ -193,7 +199,18 @@ private fun TravelPrepScreen() {
                         plan.checklist.forEach { task ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = task.isDone, onCheckedChange = { checked ->
-                                    val updated = plan.copy(checklist = plan.checklist.map { if (it.id == task.id) it.copy(isDone = checked) else it })
+                                    val now = System.currentTimeMillis()
+                                    val updated = plan.copy(
+                                        updatedAt = now,
+                                        checklist = plan.checklist.map {
+                                            if (it.id == task.id) it.copy(
+                                                isDone = checked,
+                                                completedByUserId = if (checked) currentUserId else null,
+                                                completedAt = if (checked) now else null,
+                                                updatedAt = now
+                                            ) else it
+                                        }
+                                    )
                                     TravelPlanStore.save(context, updated)
                                     refresh()
                                     val uid = currentUserId
@@ -238,9 +255,11 @@ private fun TravelPrepScreen() {
                     recipient = recipientLabel,
                     pairId = pair,
                     recipientUserId = recipientId,
+                    createdByUserId = uid,
                     departureAt = departureAt,
                     reminderAt = reminderAt,
-                    checklist = checklist
+                    checklist = checklist,
+                    updatedAt = System.currentTimeMillis()
                 )
                 TravelPlanStore.save(context, plan)
                 if (recipientId == uid) TravelReminderScheduler.schedule(context, plan)
@@ -263,16 +282,17 @@ private fun TravelPrepScreen() {
 
 private suspend fun pushRemoteTravelPlan(plan: TravelPlan, currentUserId: String) {
     val pair = plan.pairId ?: return
+    val createdBy = plan.createdByUserId ?: currentUserId
     val record = TravelPlanRecord(
         id = plan.id,
         pairId = pair,
-        createdBy = currentUserId,
+        createdBy = createdBy,
         recipientUserId = plan.recipientUserId,
         title = plan.title,
         departureAt = Instant.ofEpochMilli(plan.departureAt).toString(),
         reminderAt = Instant.ofEpochMilli(plan.reminderAt).toString(),
         timezone = java.util.TimeZone.getDefault().id,
-        updatedAt = Instant.now().toString()
+        updatedAt = Instant.ofEpochMilli(plan.updatedAt).toString()
     )
     val checklist = plan.checklist.mapIndexed { index, item ->
         TravelChecklistRecord(
@@ -281,9 +301,9 @@ private suspend fun pushRemoteTravelPlan(plan: TravelPlan, currentUserId: String
             title = item.title,
             sortOrder = index,
             isDone = item.isDone,
-            completedBy = if (item.isDone) currentUserId else null,
-            completedAt = if (item.isDone) Instant.now().toString() else null,
-            updatedAt = Instant.now().toString()
+            completedBy = item.completedByUserId,
+            completedAt = item.completedAt?.let { Instant.ofEpochMilli(it).toString() },
+            updatedAt = Instant.ofEpochMilli(item.updatedAt).toString()
         )
     }
     TandemSupabase.saveTravelPlan(record, checklist)
@@ -296,36 +316,71 @@ private suspend fun syncRemotePlans(
     currentUserId: String,
     partnerName: String
 ) {
+    val currentPlans = TravelPlanStore.all(context).filter { it.pairId == pairId }
     val remoteIds = records.map { it.id }.toSet()
-    TravelPlanStore.all(context).filter { it.pairId == pairId && it.id !in remoteIds }.forEach {
-        TravelReminderScheduler.cancel(context, it)
-        TravelPlanStore.delete(context, it.id)
-    }
-    records.forEach { record ->
-        val wasAlreadySaved = TravelPlanStore.all(context).any { it.id == record.id }
-        val checklist = TandemSupabase.loadChecklist(record.id).map {
-            TravelChecklistItem(id = it.id, title = it.title, isDone = it.isDone)
+
+    // Locally-created plans that have not reached the cloud are retained and retried.
+    currentPlans.filter { it.id !in remoteIds }.forEach { local ->
+        if (local.createdByUserId == currentUserId) {
+            runCatching { pushRemoteTravelPlan(local, currentUserId) }
+        } else {
+            TravelReminderScheduler.cancel(context, local)
+            TravelPlanStore.delete(context, local.id)
         }
-        val departure = Instant.parse(record.departureAt).toEpochMilli()
-        val reminder = record.reminderAt?.let { Instant.parse(it).toEpochMilli() } ?: departure
+    }
+
+    records.forEach { record ->
+        val local = currentPlans.firstOrNull { it.id == record.id }
+        val remotePlanUpdatedAt = Instant.parse(record.updatedAt).toEpochMilli()
+        val localPlanIsNewer = local != null && local.updatedAt > remotePlanUpdatedAt
+        val remoteChecklist = TandemSupabase.loadChecklist(record.id).map { remote ->
+            TravelChecklistItem(
+                id = remote.id,
+                title = remote.title,
+                isDone = remote.isDone,
+                completedByUserId = remote.completedBy,
+                completedAt = remote.completedAt?.let { Instant.parse(it).toEpochMilli() },
+                updatedAt = Instant.parse(remote.updatedAt).toEpochMilli()
+            )
+        }
+        val localItems = local?.checklist.orEmpty().associateBy { it.id }
+        val remoteIdsForPlan = remoteChecklist.map { it.id }.toSet()
+        var localChecklistHasNewerChanges = false
+        val mergedChecklist = remoteChecklist.map { remoteItem ->
+            val localItem = localItems[remoteItem.id]
+            if (localItem != null && localItem.updatedAt > remoteItem.updatedAt) {
+                localChecklistHasNewerChanges = true
+                localItem
+            } else remoteItem
+        } + localItems.values.filter { it.id !in remoteIdsForPlan }.onEach {
+            localChecklistHasNewerChanges = true
+        }
+
         val isRecipient = record.recipientUserId == currentUserId
-        val local = TravelPlan(
+        val merged = TravelPlan(
             id = record.id,
-            title = record.title,
+            title = if (localPlanIsNewer) local!!.title else record.title,
             recipient = if (isRecipient) "Me" else partnerName,
             pairId = record.pairId,
             recipientUserId = record.recipientUserId,
-            departureAt = departure,
-            reminderAt = reminder,
-            checklist = checklist
+            createdByUserId = record.createdBy,
+            departureAt = if (localPlanIsNewer) local!!.departureAt else Instant.parse(record.departureAt).toEpochMilli(),
+            reminderAt = if (localPlanIsNewer) local!!.reminderAt else record.reminderAt?.let { Instant.parse(it).toEpochMilli() } ?: Instant.parse(record.departureAt).toEpochMilli(),
+            checklist = mergedChecklist,
+            createdAt = local?.createdAt ?: System.currentTimeMillis(),
+            updatedAt = maxOf(local?.updatedAt ?: 0L, remotePlanUpdatedAt, mergedChecklist.maxOfOrNull { it.updatedAt } ?: 0L)
         )
-        TravelPlanStore.save(context, local)
+        TravelPlanStore.save(context, merged)
+
+        if (localPlanIsNewer || localChecklistHasNewerChanges) {
+            runCatching { pushRemoteTravelPlan(merged, currentUserId) }
+        }
         if (isRecipient) {
-            TravelReminderScheduler.schedule(context, local)
-            if (!wasAlreadySaved && TravelPlanStore.markSharedNotificationShown(context, local.id)) {
-                TravelReminderScheduler.notifyPlanShared(context, local)
+            TravelReminderScheduler.schedule(context, merged)
+            if (local == null && TravelPlanStore.markSharedNotificationShown(context, merged.id)) {
+                TravelReminderScheduler.notifyPlanShared(context, merged)
             }
-        } else TravelReminderScheduler.cancel(context, local)
+        } else TravelReminderScheduler.cancel(context, merged)
     }
 }
 
