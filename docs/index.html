@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101114">
+<title>Tandem — Two Minds. One Rhythm.</title>
+<meta name="description" content="Tandem is a shared space for two people to coordinate the little things in life.">
+<style>
+:root{color-scheme:dark;--bg:#101114;--gold:#d4af67;--coral:#e06d53;--mint:#80c6a3;--muted:#a7a6a1}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 50% 25%,#29251f 0%,var(--bg) 56%);color:#f4efe6;font-family:Inter,ui-sans-serif,system-ui,sans-serif;overflow-x:hidden}
+#scene{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:.9;pointer-events:none}
+main{position:relative;z-index:1}.hero{min-height:100svh;display:grid;place-items:center;text-align:center;padding:5rem 1.5rem}.content{max-width:900px}.eyebrow{letter-spacing:.32em;text-transform:uppercase;color:var(--gold);font-size:.72rem}.orb{width:110px;height:110px;margin:0 auto 2rem;border:1px solid #d4af6780;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 70px #d4af6730,inset 0 0 40px #e06d5320;animation:float 5s ease-in-out infinite}.orb span{font-size:2.5rem;color:var(--gold)}h1{font-size:clamp(3.5rem,10vw,7.5rem);letter-spacing:.13em;margin:.2em 0;font-weight:650}h1 em{font-style:normal;color:var(--gold)}.tag{font-size:clamp(1.1rem,3vw,1.55rem);color:#ddd4c6}.intro{max-width:650px;margin:1.5rem auto;color:var(--muted);line-height:1.8}.actions{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:2rem}.btn{padding:.9rem 1.3rem;border:1px solid #d4af6780;border-radius:999px;color:#f5ead6;text-decoration:none;transition:.25s;background:#ffffff08}.btn.primary{background:var(--gold);color:#171512;border-color:var(--gold);font-weight:700}.btn:hover{transform:translateY(-4px);box-shadow:0 12px 35px #d4af6728}.section{max-width:1100px;margin:auto;padding:6rem 1.5rem}.section h2{text-align:center;font-size:clamp(2rem,5vw,3.5rem);font-weight:500}.section>p{text-align:center;color:var(--muted);max-width:650px;margin:1rem auto 3rem;line-height:1.8}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}.tile{padding:1.5rem;border:1px solid #ffffff18;border-radius:22px;background:linear-gradient(145deg,#ffffff0c,#ffffff03);backdrop-filter:blur(12px);min-height:175px;transition:transform .3s,border-color .3s}.tile:hover{transform:translateY(-7px) rotateX(2deg);border-color:#d4af6770}.tile b{color:var(--gold);font-size:1.05rem}.tile p{color:var(--muted);line-height:1.65}.footer{text-align:center;padding:3rem 1rem;color:var(--muted);border-top:1px solid #ffffff14}@keyframes float{50%{transform:translateY(-12px) rotate(8deg)}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body><canvas id="scene" aria-hidden="true"></canvas>
+<main>
+<section class="hero"><div class="content"><div class="orb"><span>✧</span></div><div class="eyebrow">A shared space for two</div><h1>TAN<em>DEM</em></h1><div class="tag">Two Minds. One Rhythm.</div><p class="intro">The little things deserve a place of their own. Bring tasks, thoughtful nudges, shopping, and shared rituals into one calm space built for two.</p><div class="actions"><a class="btn primary" href="https://github.com/vikramma27/Tandem/releases/latest">Get the Android app ↗</a><a class="btn" href="https://github.com/vikramma27/Tandem">Explore the source ↗</a></div></div></section>
+<section class="section"><div class="eyebrow" style="text-align:center">Made for everyday togetherness</div><h2>Less coordination overhead.<br>More room for life.</h2><p>A clean, native Android experience that gives two people a shared rhythm without filling the space with noise.</p><div class="grid">
+<article class="tile"><b>01 / Shared spaces</b><p>Keep the moving parts of everyday life grouped into focused spaces.</p></article>
+<article class="tile"><b>02 / Action tasks</b><p>Capture, assign, prioritise, and complete the things that need doing.</p></article>
+<article class="tile"><b>03 / Attention nudges</b><p>Send a deliberate ping when something needs the other person's attention.</p></article>
+<article class="tile"><b>04 / Smart shopping</b><p>Organise purchases by aisle, quantity, store, and estimated cost.</p></article>
+<article class="tile"><b>05 / Shared rituals</b><p>Make recurring check-ins visible and easy to keep up with.</p></article>
+<article class="tile"><b>06 / Start simple</b><p>Begin with a clean solo workspace, then pair when you're ready.</p></article>
+</div></section>
+<footer class="footer">TANDEM · Two Minds. One Rhythm. · Built with Kotlin & Jetpack Compose</footer>
+</main>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+const canvas=document.querySelector('#scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+const scene=new THREE.Scene();const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.1,100);camera.position.set(0,0,11);
+const group=new THREE.Group();scene.add(group);
+const gold=new THREE.MeshStandardMaterial({color:0xd4af67,metalness:.8,roughness:.23,wireframe:true});
+const coral=new THREE.MeshStandardMaterial({color:0xe06d53,metalness:.65,roughness:.28,wireframe:true});
+const a=new THREE.Mesh(new THREE.TorusKnotGeometry(2.05,.012,240,12,2,3),gold);
+const b=new THREE.Mesh(new THREE.TorusGeometry(2.8,.009,8,160),coral);b.rotation.x=1.1;b.rotation.y=.5;group.add(a,b);
+const particles=new THREE.BufferGeometry(),pts=[];for(let i=0;i<900;i++){pts.push((Math.random()-.5)*24,(Math.random()-.5)*16,(Math.random()-.5)*12)}
+particles.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+scene.add(new THREE.Points(particles,new THREE.PointsMaterial({color:0xd4af67,size:.018,transparent:true,opacity:.7})));
+scene.add(new THREE.AmbientLight(0xffffff,.8));const light=new THREE.PointLight(0xd4af67,18);light.position.set(3,4,5);scene.add(light);
+let pointerX=0,pointerY=0;addEventListener('pointermove',e=>{pointerX=(e.clientX/innerWidth-.5)*.3;pointerY=(e.clientY/innerHeight-.5)*.3});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+const clock=new THREE.Clock();function tick(){const t=clock.getElapsedTime();group.rotation.y=t*.12+pointerX;group.rotation.x=Math.sin(t*.22)*.14+pointerY;renderer.render(scene,camera);requestAnimationFrame(tick)}tick();
+</script></body></html>

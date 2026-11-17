@@ -1,0 +1,106 @@
+<div align="center">
+
+<img src="app/src/main/ic_tandem_playstore_512.png" width="112" alt="Tandem app icon" />
+
+# TANDEM
+### Two Minds. One Rhythm.
+
+**A shared space for the little things that make life work together.**
+
+[![Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](https://www.android.com/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4)](https://developer.android.com/compose)
+[![Android APK](https://github.com/vikramma27/Tandem/actions/workflows/build-apk.yml/badge.svg)](https://github.com/vikramma27/Tandem/actions/workflows/build-apk.yml)
+[![Pages](https://github.com/vikramma27/Tandem/actions/workflows/pages.yml/badge.svg)](https://github.com/vikramma27/Tandem/actions/workflows/pages.yml)
+
+[**Explore the immersive 3D project site**](https://vikramma27.github.io/Tandem/) · [**Download latest APK**](https://github.com/vikramma27/Tandem/releases/latest)
+
+</div>
+
+---
+
+## The idea
+
+Tandem is a native Android shared-space app designed around two people coordinating everyday life. Start with a clean solo workspace, configure your identity, and pair with one other person when you're ready.
+
+## What is inside
+
+- **A clean starting point** — no seeded names, sample tasks, or dummy lists.
+- **Two-person pairing** — configure your display name and use a `TNDM-XXXX-XXXX` invite code.
+- **Shared spaces** — keep activities and lists organised by context.
+- **Action tasks** — create, assign, prioritise, and complete tasks.
+- **Attention nudges** — send a focused ping when something needs a partner's attention.
+- **Smart shopping lists** — organise items by aisle, quantity, store tag, and estimated cost.
+- **Shared rituals** — keep recurring check-ins visible for both people.
+- **Local-first storage** — Room provides on-device persistence.
+
+> Pairing and relay synchronisation are integration points in the current codebase. A working relay backend must be configured for cross-device data synchronisation; the Android client alone does not host that service.
+
+## Immersive project experience
+
+The companion project site uses a Three.js scene with animated geometry, orbital motion, lighting, particles, and responsive pointer movement. It is deployed independently through GitHub Pages. The README itself remains static because GitHub does not execute embedded JavaScript.
+
+## Download and install
+
+1. Open [**Latest Releases**](https://github.com/vikramma27/Tandem/releases/latest).
+2. Download the **Tandem-`version`-installable-debug.apk** asset.
+3. Open the APK on Android and approve installation from that source when prompted.
+
+The automated installer is a debug-signed APK, so it is installable without exposing a private signing key. GitHub-hosted runners generate their debug signing key; if a future build is signed with a different key, Android may require uninstalling the previous build before installing the new one. A stable production signing identity can be configured later using private GitHub Actions secrets. Never commit a keystore or its passwords.
+
+## Build locally
+
+Requirements: JDK 17, Android SDK API 35, and Gradle 8.10.2 or compatible.
+
+```bash
+gradle assembleDebug
+gradle assembleRelease
+```
+
+Installable debug APK:
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+The release variant produced without a configured signing key is unsigned and is not the recommended installer.
+
+## Automated builds and releases
+
+- Every push to `main` builds debug and release variants and uploads both as workflow artifacts.
+- Pull requests targeting `main` are built for validation.
+- Pushing a version tag such as `v1.0.0` creates a GitHub Release with the installable debug-signed APK attached.
+- You can also start a build manually from **Actions → Android APK → Run workflow**.
+
+Create a release:
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+## Technology
+
+| Layer | Technology |
+|---|---|
+| Language | Kotlin 2.0.21 |
+| UI | Jetpack Compose + Material 3 |
+| Local persistence | Room |
+| Async state | Kotlin Coroutines + Flow |
+| Serialization | kotlinx.serialization |
+| Background work dependency | WorkManager |
+| Build | Android Gradle Plugin 8.7.2, JDK 17 |
+
+## Project structure
+
+```text
+.
+├── .github/workflows/
+├── app/src/main/
+├── docs/                 # Three.js GitHub Pages site
+├── gradle/libs.versions.toml
+├── build.gradle.kts
+└── settings.gradle.kts
+```
+
+## License
+
+No license file was included in the supplied project archive. All rights remain with the copyright holder until a license is explicitly added.

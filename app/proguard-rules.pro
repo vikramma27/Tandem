@@ -1,0 +1,2 @@
+-keep class app.tandem.duo.data.** { *; }
+-keepattributes *Annotation*
