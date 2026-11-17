@@ -115,8 +115,7 @@ private fun TravelPrepScreen() {
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { showCreate = true },
-                enabled = pairId != null && currentUserId != null,
+                onClick = { if (pairId != null && currentUserId != null) showCreate = true },
                 icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("PLAN A DEPARTURE") }
             )
