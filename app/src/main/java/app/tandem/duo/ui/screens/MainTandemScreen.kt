@@ -812,8 +812,8 @@ private fun SendNudgeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CharcoalSurface,
-        titleContentColor = IvoryText,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text("Send Attention Ping", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
