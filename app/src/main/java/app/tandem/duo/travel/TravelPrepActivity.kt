@@ -79,6 +79,9 @@ private fun TravelPrepScreen() {
     fun refresh() { plans = TravelPlanStore.all(context) }
 
     LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         runCatching {
             val user = TandemSupabase.currentUser() ?: error("Sign in to sync your travel plans.")
             currentUserId = user.id
