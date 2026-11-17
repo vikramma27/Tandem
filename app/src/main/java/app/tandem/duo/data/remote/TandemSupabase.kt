@@ -13,7 +13,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.postgrest.query.filter.FilterOperation
 import io.github.jan.supabase.postgrest.query.Order
-import io.github.jan.supabase.annotiations.SupabaseExperimental
+import io.github.jan.supabase.annotations.SupabaseExperimental
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.selectAsFlow
 import kotlinx.coroutines.flow.Flow
