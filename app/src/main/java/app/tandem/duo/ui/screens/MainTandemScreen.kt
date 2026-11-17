@@ -67,13 +67,13 @@ fun MainTandemScreen(viewModel: TandemViewModel) {
         containerColor = ObsidianBg,
         floatingActionButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ExtendedFloatingActionButton(
+                FloatingActionButton(
                     onClick = { context.startActivity(Intent(context, TravelPrepActivity::class.java)) },
                     containerColor = ElevatedSlate,
-                    contentColor = SageMint,
-                    icon = { Icon(Icons.Default.FlightTakeoff, contentDescription = "Travel prep") },
-                    text = { Text("TRAVEL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
-                )
+                    contentColor = SageMint
+                ) {
+                    Icon(Icons.Default.FlightTakeoff, contentDescription = "Travel prep")
+                }
                 if (config.isPaired) {
                     ExtendedFloatingActionButton(
                         onClick = { showNudgeModal = true },
