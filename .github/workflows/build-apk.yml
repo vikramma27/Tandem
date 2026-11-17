@@ -3,13 +3,12 @@ name: Android APK
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: android-build-${{ github.ref }}
@@ -38,11 +37,6 @@ jobs:
       - name: Build debug and release APKs
         run: gradle --no-daemon assembleDebug assembleRelease
 
-      - name: Prepare installable release asset
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Tandem-${GITHUB_REF_NAME}-installable-debug.apk"
-
       - name: Upload APK build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -52,11 +46,3 @@ jobs:
             app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
-
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Tandem ${{ github.ref_name }}
-          generate_release_notes: true
-          files: Tandem-${{ github.ref_name }}-installable-debug.apk
