@@ -23,6 +23,8 @@ data class TravelChecklistItem(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
     val isDone: Boolean = false,
+    val completedByUserId: String? = null,
+    val completedAt: Long? = null,
     val updatedAt: Long = System.currentTimeMillis()
 )
 
@@ -50,7 +52,14 @@ object TravelPlanStore {
                     updatedAt = obj.optLong("updatedAt", obj.optLong("createdAt", 0L)),
                     checklist = (0 until tasks.length()).map { j ->
                         val task = tasks.getJSONObject(j)
-                        TravelChecklistItem(task.getString("id"), task.getString("title"), task.optBoolean("isDone"), task.optLong("updatedAt", 0L))
+                        TravelChecklistItem(
+                            id = task.getString("id"),
+                            title = task.getString("title"),
+                            isDone = task.optBoolean("isDone"),
+                            completedByUserId = task.optString("completedByUserId").takeIf { it.isNotBlank() },
+                            completedAt = task.optLong("completedAt", 0L).takeIf { it > 0L },
+                            updatedAt = task.optLong("updatedAt", 0L)
+                        )
                     }
                 )
             }.sortedBy { it.departureAt }
@@ -79,7 +88,7 @@ object TravelPlanStore {
         plans.forEach { plan ->
             val tasks = JSONArray()
             plan.checklist.forEach { item ->
-                tasks.put(JSONObject().put("id", item.id).put("title", item.title).put("isDone", item.isDone).put("updatedAt", item.updatedAt))
+                tasks.put(JSONObject().put("id", item.id).put("title", item.title).put("isDone", item.isDone).put("completedByUserId", item.completedByUserId.orEmpty()).put("completedAt", item.completedAt ?: 0L).put("updatedAt", item.updatedAt))
             }
             array.put(
                 JSONObject()
