@@ -1,5 +1,6 @@
 package app.tandem.duo.ui.screens
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,18 +16,21 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.tandem.duo.data.local.*
+import app.tandem.duo.travel.TravelPrepActivity
 import app.tandem.duo.ui.TandemViewModel
 import app.tandem.duo.ui.components.DuoKineticOrbitEmblem
 import app.tandem.duo.ui.components.LiveAttentionNudgeBanner
@@ -35,6 +39,7 @@ import app.tandem.duo.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainTandemScreen(viewModel: TandemViewModel) {
+    val context = LocalContext.current
     val config by viewModel.userConfig.collectAsState()
     val spaces by viewModel.spaces.collectAsState()
     val selectedSpaceId by viewModel.selectedSpaceId.collectAsState()
@@ -42,6 +47,9 @@ fun MainTandemScreen(viewModel: TandemViewModel) {
     val items by viewModel.filteredItems.collectAsState()
     val allItems by viewModel.allItems.collectAsState()
     val activeNudges by viewModel.activeNudges.collectAsState()
+    val pairInviteCode by viewModel.pairInviteCode.collectAsState()
+    val pairBusy by viewModel.pairBusy.collectAsState()
+    val pairMessage by viewModel.pairMessage.collectAsState()
 
     var showProfilePairingSheet by remember { mutableStateOf(false) }
     var showComposerSheet by remember { mutableStateOf(false) }
@@ -61,7 +69,14 @@ fun MainTandemScreen(viewModel: TandemViewModel) {
     Scaffold(
         containerColor = ObsidianBg,
         floatingActionButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FloatingActionButton(
+                    onClick = { context.startActivity(Intent(context, TravelPrepActivity::class.java)) },
+                    containerColor = ElevatedSlate,
+                    contentColor = SageMint
+                ) {
+                    Icon(Icons.Default.FlightTakeoff, contentDescription = "Travel prep")
+                }
                 if (config.isPaired) {
                     ExtendedFloatingActionButton(
                         onClick = { showNudgeModal = true },
@@ -321,11 +336,14 @@ fun MainTandemScreen(viewModel: TandemViewModel) {
     if (showProfilePairingSheet) {
         ProfileAndPairingDialog(
             currentConfig = config,
+            isPaired = config.isPaired,
+            inviteCode = pairInviteCode,
+            busy = pairBusy,
+            message = pairMessage,
             onDismiss = { showProfilePairingSheet = false },
-            onSave = { myName, otherName, code, paired, endpoint ->
-                viewModel.saveIdentityAndPairing(myName, otherName, code, paired, endpoint)
-                showProfilePairingSheet = false
-            }
+            onSaveName = { name -> viewModel.updateMyDisplayName(name) },
+            onCreateInvite = { viewModel.createPairAndInvite() },
+            onJoinPair = { code -> viewModel.joinPair(code) }
         )
     }
 
@@ -471,66 +489,93 @@ private fun TandemTaskCard(
 @Composable
 private fun ProfileAndPairingDialog(
     currentConfig: UserConfigEntity,
+    isPaired: Boolean,
+    inviteCode: String?,
+    busy: Boolean,
+    message: String?,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Boolean, String) -> Unit
+    onSaveName: (String) -> Unit,
+    onCreateInvite: () -> Unit,
+    onJoinPair: (String) -> Unit
 ) {
     var selfName by remember { mutableStateOf(currentConfig.selfDisplayName) }
-    var partnerName by remember { mutableStateOf(currentConfig.partnerDisplayName) }
-    var pairingCode by remember { mutableStateOf(currentConfig.pairingCode) }
-    var isPaired by remember { mutableStateOf(currentConfig.isPaired) }
-    var endpoint by remember { mutableStateOf(currentConfig.relayEndpointUrl) }
+    var codeToJoin by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = CharcoalSurface,
         titleContentColor = IvoryText,
-        title = { Text("Configure Your Identity & Pair", style = MaterialTheme.typography.titleLarge) },
+        title = { Text("Your Tandem connection", style = MaterialTheme.typography.titleLarge) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Your profile", color = ChampagneGold, style = MaterialTheme.typography.labelLarge)
                 OutlinedTextField(
                     value = selfName,
                     onValueChange = { selfName = it },
-                    label = { Text("Your Display Name") },
-                    singleLine = true
+                    label = { Text("Your name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isPaired, onCheckedChange = { isPaired = it })
-                    Text("Pair with second person", color = IvoryText)
-                }
-                AnimatedVisibility(visible = isPaired) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = partnerName,
-                            onValueChange = { partnerName = it },
-                            label = { Text("Second Person's Display Name") },
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = pairingCode,
-                            onValueChange = { pairingCode = it },
-                            label = { Text("Shared 2-Peer Pairing Key") },
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = endpoint,
-                            onValueChange = { endpoint = it },
-                            label = { Text("Optional Relay / Supabase URL") },
-                            singleLine = true
-                        )
+                OutlinedButton(
+                    onClick = { onSaveName(selfName) },
+                    enabled = selfName.isNotBlank() && !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("SAVE NAME") }
+
+                Divider(color = Color.White.copy(alpha = 0.12f))
+                Text("Connect your second person", color = ChampagneGold, style = MaterialTheme.typography.labelLarge)
+                if (isPaired) {
+                    Text(
+                        "You're connected with ${currentConfig.partnerDisplayName.ifBlank { "your partner" }}. Shared plans and updates will appear for both of you.",
+                        color = SageMint,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    Text(
+                        "Create a private invite and share it with your partner, or enter an invite they created. Codes expire after 48 hours and can only be used once.",
+                        color = MutedPewter,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Button(
+                        onClick = onCreateInvite,
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = TerracottaCoral, contentColor = ObsidianBg)
+                    ) {
+                        if (busy) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        else Text(if (inviteCode == null) "CREATE INVITE CODE" else "GENERATE NEW INVITE")
                     }
+                    if (!inviteCode.isNullOrBlank()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                .background(ElevatedSlate).padding(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("YOUR PRIVATE INVITE", style = MaterialTheme.typography.labelSmall, color = MutedPewter)
+                            Text(inviteCode, style = MaterialTheme.typography.headlineSmall, color = IvoryText, fontWeight = FontWeight.Bold)
+                            Text("Share this code with your partner", style = MaterialTheme.typography.bodySmall, color = SageMint)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = codeToJoin,
+                        onValueChange = { codeToJoin = it.uppercase() },
+                        label = { Text("Partner's invite code") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedButton(
+                        onClick = { onJoinPair(codeToJoin) },
+                        enabled = codeToJoin.isNotBlank() && !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("JOIN WITH INVITE CODE") }
+                }
+                if (!message.isNullOrBlank()) {
+                    Text(message, style = MaterialTheme.typography.bodySmall, color = CrimsonPulse)
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = { onSave(selfName, partnerName, pairingCode, isPaired, endpoint) },
-                colors = ButtonDefaults.buttonColors(containerColor = TerracottaCoral, contentColor = ObsidianBg)
-            ) {
-                Text("SAVE CONFIGURATION", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL", color = MutedPewter) }
+            TextButton(onClick = onDismiss) { Text("DONE", color = ChampagneGold) }
         }
     )
 }

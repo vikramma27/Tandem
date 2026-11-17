@@ -5,6 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.tandem.duo.data.local.*
 import app.tandem.duo.data.sync.DuoSyncEngine
+import app.tandem.duo.data.remote.TandemSupabase
+import io.github.jan.supabase.auth.user.UserInfo
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -12,6 +15,126 @@ import java.util.UUID
 class TandemViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = TandemDatabase.getInstance(application).dao()
     val syncEngine = DuoSyncEngine()
+
+    private val _authUser = MutableStateFlow<UserInfo?>(null)
+    val authUser: StateFlow<UserInfo?> = _authUser.asStateFlow()
+    private val _authChecking = MutableStateFlow(true)
+    val authChecking: StateFlow<Boolean> = _authChecking.asStateFlow()
+    private val _authBusy = MutableStateFlow(false)
+    val authBusy: StateFlow<Boolean> = _authBusy.asStateFlow()
+    private val _authMessage = MutableStateFlow<String?>(null)
+    val authMessage: StateFlow<String?> = _authMessage.asStateFlow()
+    private val _pairId = MutableStateFlow<String?>(null)
+    val pairId: StateFlow<String?> = _pairId.asStateFlow()
+    private val _pairInviteCode = MutableStateFlow<String?>(null)
+    val pairInviteCode: StateFlow<String?> = _pairInviteCode.asStateFlow()
+    private val _pairBusy = MutableStateFlow(false)
+    val pairBusy: StateFlow<Boolean> = _pairBusy.asStateFlow()
+    private val _pairMessage = MutableStateFlow<String?>(null)
+    val pairMessage: StateFlow<String?> = _pairMessage.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            runCatching { TandemSupabase.currentUser() }
+                .onSuccess { user ->
+                    _authUser.value = user
+                    if (user != null) refreshPairDetails()
+                }
+                .onFailure { _authMessage.value = it.message ?: "Could not restore your sign-in session" }
+            _authChecking.value = false
+        }
+    }
+
+    fun sendSignInLink(email: String) {
+        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+            _authMessage.value = "Enter a valid email address."
+            return
+        }
+        viewModelScope.launch {
+            _authBusy.value = true
+            _authMessage.value = null
+            runCatching { TandemSupabase.requestEmailSignIn(email) }
+                .onSuccess { _authMessage.value = "Sign-in link sent. Open the email on this device to continue." }
+                .onFailure { _authMessage.value = it.message ?: "Could not send the sign-in link." }
+            _authBusy.value = false
+        }
+    }
+
+    fun refreshSignedInUser() {
+        viewModelScope.launch {
+            _authUser.value = runCatching { TandemSupabase.currentUser() }.getOrNull()
+            if (_authUser.value != null) refreshPairDetails()
+        }
+    }
+
+    fun signOut() {
+        viewModelScope.launch {
+            runCatching { TandemSupabase.client.auth.signOut() }
+            _authUser.value = null
+            _pairId.value = null
+            _pairInviteCode.value = null
+        }
+    }
+
+    fun updateMyDisplayName(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            _authBusy.value = true
+            runCatching { TandemSupabase.updateDisplayName(name) }
+                .onSuccess {
+                    dao.saveUserConfig(userConfig.value.copy(selfDisplayName = name.trim()))
+                    _authMessage.value = "Your profile is updated."
+                }
+                .onFailure { _authMessage.value = it.message ?: "Could not update your profile." }
+            _authBusy.value = false
+        }
+    }
+
+    fun createPairAndInvite() {
+        viewModelScope.launch {
+            _pairBusy.value = true
+            _pairMessage.value = null
+            runCatching {
+                val membership = TandemSupabase.currentPair()
+                val id = membership?.pairId ?: TandemSupabase.createPair()
+                val invite = TandemSupabase.createInvite(id)
+                _pairId.value = id
+                _pairInviteCode.value = invite.inviteCode.chunked(4).joinToString("-")
+                refreshPairDetails()
+            }.onFailure { _pairMessage.value = it.message ?: "Could not create an invite." }
+            _pairBusy.value = false
+        }
+    }
+
+    fun joinPair(inviteCode: String) {
+        if (inviteCode.isBlank()) return
+        viewModelScope.launch {
+            _pairBusy.value = true
+            _pairMessage.value = null
+            runCatching {
+                _pairId.value = TandemSupabase.acceptInvite(inviteCode)
+                _pairInviteCode.value = null
+                refreshPairDetails()
+            }.onFailure { _pairMessage.value = it.message ?: "That invite could not be accepted." }
+            _pairBusy.value = false
+        }
+    }
+
+    private suspend fun refreshPairDetails() {
+        val localConfig = dao.observeUserConfig().firstOrNull() ?: UserConfigEntity()
+        val membership = TandemSupabase.currentPair()
+        _pairId.value = membership?.pairId
+        if (membership == null) {
+            dao.saveUserConfig(localConfig.copy(isPaired = false, partnerDisplayName = "", pairingCode = ""))
+            return
+        }
+        val user = TandemSupabase.currentUser() ?: return
+        val partner = TandemSupabase.pairProfiles(membership.pairId).firstOrNull { it.id != user.id }
+        dao.saveUserConfig(localConfig.copy(
+            isPaired = partner != null,
+            partnerDisplayName = partner?.displayName.orEmpty()
+        ))
+    }
 
     val userConfig: StateFlow<UserConfigEntity> = dao.observeUserConfig()
         .map { it ?: UserConfigEntity() }
