@@ -328,7 +328,7 @@ begin
       and recipient_user_id=new.recipient_user_id and delivered_at is null
       and event_type in ('travel_reminder','travel_departure');
   end if;
-  if new.recipient_user_id is not null and new.recipient_user_id<>new.created_by then
+  if tg_op='INSERT' and new.recipient_user_id is not null and new.recipient_user_id<>new.created_by then
     insert into public.notification_events(pair_id,recipient_user_id,actor_user_id,event_type,title,body,payload,scheduled_for)
     values(new.pair_id,new.recipient_user_id,new.created_by,'travel_plan_shared','A travel plan was shared',
       new.title||' is on the way to your shared plans',jsonb_build_object('plan_id',new.id,'destination',new.destination),now());
