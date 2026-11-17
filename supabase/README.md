@@ -30,6 +30,8 @@ Add that exact URI under **Authentication → URL Configuration → Redirect URL
 
 The Android client uses only the publishable key. Never put the `service_role` key in the APK, Gradle files, or source control.
 
+The redirect URI must be added manually in the Supabase dashboard because the project connector does not expose Auth URL configuration. Confirm `tandem://auth-callback` appears in the Redirect URLs allowlist before testing sign-in.
+
 ## Travel sync and notifications
 
 - Realtime updates shared travel plans while the app is connected.
@@ -49,3 +51,7 @@ For prompt push delivery when the recipient app is closed or Android delays back
 ## Applied security hardening
 
 The follow-on migration `20261117124532_tandem_restrict_partner_acknowledgement_updates.sql` narrows partner-nudge updates to the intended receiver and limits the writable acknowledgement fields. Notification-event updates are limited to the `read_at` field. This avoids granting a paired user broad write access to message contents or notification payloads.
+
+## Delivery boundaries
+
+The app retries queued travel-plan upserts and deletes after reconnecting, rather than dropping an edit when an immediate network call fails. Realtime is used while the Travel Prep screen is active; periodic WorkManager catch-up is best-effort and Android may defer it. The database also queues scheduled notification events, but no server push sender is deployed yet. Instant delivery while the app is closed requires Firebase Cloud Messaging setup and a server-side credential; do not treat the database event queue as delivered push.
