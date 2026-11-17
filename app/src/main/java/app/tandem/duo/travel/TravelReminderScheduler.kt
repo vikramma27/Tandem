@@ -29,6 +29,26 @@ object TravelReminderScheduler {
         }
     }
 
+    fun notifyPlanShared(context: Context, plan: TravelPlan) {
+        ensureChannel(context)
+        val openApp = PendingIntent.getActivity(
+            context, plan.id.hashCode() + 3,
+            Intent(context, TravelPrepActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("A travel plan was shared with you")
+            .setContentText("${plan.title} • check the shared essentials list")
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            runCatching { NotificationManagerCompat.from(context).notify(plan.id.hashCode() + 3, notification) }
+        }
+    }
+
     fun schedule(context: Context, plan: TravelPlan) {
         scheduleOne(context, plan, plan.reminderAt, 1)
         scheduleOne(context, plan, plan.departureAt, 2)
