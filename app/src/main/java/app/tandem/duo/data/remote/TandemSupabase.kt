@@ -12,11 +12,15 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.postgrest.query.filter.FilterOperation
+import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.annotations.SupabaseExperimental
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.selectAsFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.UUID
 
 /**
@@ -77,21 +81,21 @@ object TandemSupabase {
     suspend fun createPair(name: String = "Our space"): String {
         return client.postgrest.rpc(
             function = "create_pair",
-            parameters = mapOf("pair_name" to name)
+            parameters = buildJsonObject { put("pair_name", name) }
         ).decodeAs<String>()
     }
 
     suspend fun createInvite(pairId: String): PairInviteResult {
         return client.postgrest.rpc(
             function = "create_pair_invite",
-            parameters = mapOf("pair_id_input" to pairId)
+            parameters = buildJsonObject { put("pair_id_input", pairId) }
         ).decodeList<PairInviteResult>().first()
     }
 
     suspend fun acceptInvite(code: String): String {
         return client.postgrest.rpc(
             function = "accept_pair_invite",
-            parameters = mapOf("invite_code_input" to code.trim())
+            parameters = buildJsonObject { put("invite_code_input", code.trim()) }
         ).decodeAs<String>()
     }
 
@@ -117,17 +121,18 @@ object TandemSupabase {
     suspend fun loadTravelPlans(pairId: String): List<TravelPlanRecord> {
         return client.from("travel_plans").select {
             filter { eq("pair_id", pairId) }
-            order("departure_at")
+            order("departure_at", Order.ASCENDING)
         }.decodeList()
     }
 
     suspend fun loadChecklist(planId: String): List<TravelChecklistRecord> {
         return client.from("travel_checklist_items").select {
             filter { eq("plan_id", planId) }
-            order("sort_order")
+            order("sort_order", Order.ASCENDING)
         }.decodeList()
     }
 
+    @OptIn(SupabaseExperimental::class)
     fun watchTravelPlans(pairId: String): Flow<List<TravelPlanRecord>> =
         client.from("travel_plans").selectAsFlow(
             primaryKey = TravelPlanRecord::id,
