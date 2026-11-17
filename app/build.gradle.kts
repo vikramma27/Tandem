@@ -14,8 +14,8 @@ android {
         applicationId = "app.tandem.duo"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
         buildConfigField("String", "SUPABASE_URL", "\"https://iuzvjnxgcrmifecumyoo.supabase.co\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_ioOruaPG9Ey-3tlN-B4QRQ_SOLJCGWM\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
