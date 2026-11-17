@@ -171,7 +171,8 @@ data class TravelPlanRecord(
     @SerialName("reminder_at") val reminderAt: String? = null,
     val timezone: String = "Asia/Kolkata",
     val notes: String = "",
-    val status: String = "planned"
+    val status: String = "planned",
+    @SerialName("updated_at") val updatedAt: String = java.time.Instant.now().toString()
 )
 
 @Serializable
@@ -181,5 +182,7 @@ data class TravelChecklistRecord(
     val title: String,
     @SerialName("sort_order") val sortOrder: Int = 0,
     @SerialName("is_done") val isDone: Boolean = false,
-    @SerialName("completed_by") val completedBy: String? = null
+    @SerialName("completed_by") val completedBy: String? = null,
+    @SerialName("completed_at") val completedAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String = java.time.Instant.now().toString()
 )
