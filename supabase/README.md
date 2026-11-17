@@ -9,7 +9,7 @@ The production project for Tandem is in the Mumbai region:
 
 ## Schema
 
-Apply **all** SQL files in `supabase/migrations/` in ascending version order. The repository now tracks the exact 23 migrations applied to the live project through version `20261117125045`; do not apply only a single baseline file. The schema and follow-on migrations include:
+Apply **all** SQL files in `supabase/migrations/` in ascending version order. The repository now tracks the exact 25 migrations applied to the live project through version `20261117130907`; do not apply only a single baseline file. The schema and follow-on migrations include:
 
 - Supabase Auth profiles and one-to-one pair membership
 - hashed, single-use pairing invitations with a 48-hour expiry
