@@ -120,15 +120,16 @@ class TandemViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun refreshPairDetails() {
+        val localConfig = dao.observeUserConfig().firstOrNull() ?: UserConfigEntity()
         val membership = TandemSupabase.currentPair()
         _pairId.value = membership?.pairId
         if (membership == null) {
-            dao.saveUserConfig(userConfig.value.copy(isPaired = false, partnerDisplayName = "", pairingCode = ""))
+            dao.saveUserConfig(localConfig.copy(isPaired = false, partnerDisplayName = "", pairingCode = ""))
             return
         }
         val user = TandemSupabase.currentUser() ?: return
         val partner = TandemSupabase.pairProfiles(membership.pairId).firstOrNull { it.id != user.id }
-        dao.saveUserConfig(userConfig.value.copy(
+        dao.saveUserConfig(localConfig.copy(
             isPaired = partner != null,
             partnerDisplayName = partner?.displayName.orEmpty()
         ))
