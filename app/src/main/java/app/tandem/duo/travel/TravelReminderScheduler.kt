@@ -10,8 +10,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import app.tandem.duo.travel.TravelPrepActivity
-import app.tandem.duo.R
 import app.tandem.duo.R
 
 object TravelReminderScheduler {
