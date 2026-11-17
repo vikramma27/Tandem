@@ -73,6 +73,7 @@ private fun TravelPrepScreen() {
     var partnerUserId by remember { mutableStateOf<String?>(null) }
     var partnerName by remember { mutableStateOf("Partner") }
     var syncMessage by remember { mutableStateOf("Connecting to your shared space…") }
+    var isSyncing by remember { mutableStateOf(true) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val dateFormat = remember { SimpleDateFormat("EEE, dd MMM • hh:mm a", Locale.getDefault()) }
 
@@ -87,6 +88,7 @@ private fun TravelPrepScreen() {
             currentUserId = user.id
             val membership = TandemSupabase.currentPair()
             if (membership == null) {
+                isSyncing = false
                 syncMessage = "Pair with your second person in Tandem to share travel plans."
             } else {
                 pairId = membership.pairId
@@ -98,12 +100,14 @@ private fun TravelPrepScreen() {
                 val initial = TandemSupabase.loadTravelPlans(membership.pairId)
                 syncRemotePlans(context, membership.pairId, initial, user.id, partnerName)
                 refresh()
+                isSyncing = false
                 TandemSupabase.watchTravelPlans(membership.pairId).collect { updated ->
                     syncRemotePlans(context, membership.pairId, updated, user.id, partnerName)
                     refresh()
                 }
             }
         }.onFailure {
+            isSyncing = false
             syncMessage = it.message ?: "Travel sync is temporarily unavailable. Your saved plans remain on this phone."
         }
     }
@@ -117,11 +121,13 @@ private fun TravelPrepScreen() {
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { if (pairId != null && currentUserId != null) showCreate = true },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("PLAN A DEPARTURE") }
-            )
+            if (pairId != null && currentUserId != null) {
+                ExtendedFloatingActionButton(
+                    onClick = { showCreate = true },
+                    icon = { Icon(Icons.Default.Add, null) },
+                    text = { Text("Plan a departure") }
+                )
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -140,7 +146,8 @@ private fun TravelPrepScreen() {
             item {
                 Card {
                     Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        if (isSyncing) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(10.dp))
                         Text(syncMessage, style = MaterialTheme.typography.bodySmall)
                     }
@@ -217,6 +224,7 @@ private fun TravelPrepScreen() {
                                     if (uid != null) {
                                         (context as? ComponentActivity)?.lifecycleScope?.launch {
                                             runCatching { pushRemoteTravelPlan(updated, uid) }
+                                                .onFailure { syncMessage = "Saved here. Cloud sync will retry when the connection returns." }
                                         }
                                     }
                                 })
