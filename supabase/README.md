@@ -9,7 +9,7 @@ The production project for Tandem is in the Mumbai region:
 
 ## Schema
 
-Apply `migrations/20261117120000_tandem_initial_schema.sql` to a fresh project. The schema includes:
+Apply `migrations/20261117120000_tandem_initial_schema.sql` to a fresh project. The schema and follow-on migrations include:
 
 - Supabase Auth profiles and one-to-one pair membership
 - hashed, single-use pairing invitations with a 48-hour expiry
@@ -45,3 +45,7 @@ For prompt push delivery when the recipient app is closed or Android delays back
 - Pair membership is checked inside policies using a restricted security-definer helper.
 - Invite codes are stored as SHA-256 hashes, expire after 48 hours and are single-use.
 - The Android app contains no service-role credential.
+
+## Applied security hardening
+
+The follow-on migration `20261117124532_tandem_restrict_partner_acknowledgement_updates.sql` narrows partner-nudge updates to the intended receiver and limits the writable acknowledgement fields. Notification-event updates are limited to the `read_at` field. This avoids granting a paired user broad write access to message contents or notification payloads.
