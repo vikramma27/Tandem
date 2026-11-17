@@ -1,5 +1,6 @@
 package app.tandem.duo.ui.screens
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,18 +16,21 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.tandem.duo.data.local.*
+import app.tandem.duo.travel.TravelPrepActivity
 import app.tandem.duo.ui.TandemViewModel
 import app.tandem.duo.ui.components.DuoKineticOrbitEmblem
 import app.tandem.duo.ui.components.LiveAttentionNudgeBanner
@@ -35,6 +39,7 @@ import app.tandem.duo.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainTandemScreen(viewModel: TandemViewModel) {
+    val context = LocalContext.current
     val config by viewModel.userConfig.collectAsState()
     val spaces by viewModel.spaces.collectAsState()
     val selectedSpaceId by viewModel.selectedSpaceId.collectAsState()
@@ -61,7 +66,14 @@ fun MainTandemScreen(viewModel: TandemViewModel) {
     Scaffold(
         containerColor = ObsidianBg,
         floatingActionButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ExtendedFloatingActionButton(
+                    onClick = { context.startActivity(Intent(context, TravelPrepActivity::class.java)) },
+                    containerColor = ElevatedSlate,
+                    contentColor = SageMint,
+                    icon = { Icon(Icons.Default.FlightTakeoff, contentDescription = "Travel prep") },
+                    text = { Text("TRAVEL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
+                )
                 if (config.isPaired) {
                     ExtendedFloatingActionButton(
                         onClick = { showNudgeModal = true },
