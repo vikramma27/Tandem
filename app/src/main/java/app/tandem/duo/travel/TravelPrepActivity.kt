@@ -318,11 +318,13 @@ private suspend fun syncRemotePlans(
     partnerName: String
 ) {
     val remoteIds = records.map { it.id }.toSet()
+    val pendingDeleteIds = TravelPlanStore.pendingDeletes(context, pairId).toSet()
     TravelPlanStore.all(context).filter { it.pairId == pairId && it.id !in remoteIds && !it.needsSync }.forEach {
         TravelReminderScheduler.cancel(context, it)
         TravelPlanStore.delete(context, it.id, queueRemoteDelete = false)
     }
     records.forEach { record ->
+        if (record.id in pendingDeleteIds) return@forEach
         val existingLocal = TravelPlanStore.all(context).firstOrNull { it.id == record.id }
         if (existingLocal?.needsSync == true) return@forEach
         val wasAlreadySaved = existingLocal != null
