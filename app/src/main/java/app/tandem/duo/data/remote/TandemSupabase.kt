@@ -139,6 +139,87 @@ object TandemSupabase {
             filter = FilterOperation("pair_id", FilterOperator.EQ, pairId)
         )
 
+    suspend fun saveSharedTask(task: SharedTaskRecord) {
+        client.from("shared_tasks").upsert(task)
+    }
+
+    suspend fun loadSharedTasks(pairId: String): List<SharedTaskRecord> =
+        client.from("shared_tasks").select {
+            filter { eq("pair_id", pairId) }
+            order("updated_at", Order.DESCENDING)
+        }.decodeList()
+
+    @OptIn(SupabaseExperimental::class)
+    fun watchSharedTasks(pairId: String): Flow<List<SharedTaskRecord>> =
+        client.from("shared_tasks").selectAsFlow(
+            primaryKey = SharedTaskRecord::id,
+            filter = FilterOperation("pair_id", FilterOperator.EQ, pairId)
+        )
+
+    suspend fun insertNudge(nudge: NudgeRecord) {
+        client.from("partner_nudges").upsert(nudge)
+    }
+
+    suspend fun loadNudges(pairId: String): List<NudgeRecord> =
+        client.from("partner_nudges").select {
+            filter { eq("pair_id", pairId) }
+            order("created_at", Order.DESCENDING)
+        }.decodeList()
+
+    @OptIn(SupabaseExperimental::class)
+    fun watchNudges(pairId: String): Flow<List<NudgeRecord>> =
+        client.from("partner_nudges").selectAsFlow(
+            primaryKey = NudgeRecord::id,
+            filter = FilterOperation("pair_id", FilterOperator.EQ, pairId)
+        )
+
+    suspend fun acknowledgeNudge(id: String, reply: String) {
+        client.from("partner_nudges").update({
+            set("is_acknowledged", true)
+            set("reply_chip", reply)
+            set("acknowledged_at", java.time.Instant.now().toString())
+        }) {
+            filter { eq("id", id) }
+        }
+    }
+
+    suspend fun saveRitual(ritual: RitualRecord) {
+        client.from("rituals").upsert(ritual)
+    }
+
+    suspend fun loadRituals(pairId: String): List<RitualRecord> =
+        client.from("rituals").select {
+            filter { eq("pair_id", pairId) }
+            order("created_at", Order.ASCENDING)
+        }.decodeList()
+
+    @OptIn(SupabaseExperimental::class)
+    fun watchRituals(pairId: String): Flow<List<RitualRecord>> =
+        client.from("rituals").selectAsFlow(
+            primaryKey = RitualRecord::id,
+            filter = FilterOperation("pair_id", FilterOperator.EQ, pairId)
+        )
+
+    suspend fun loadRitualCheckins(ritualId: String): List<RitualCheckInRecord> =
+        client.from("ritual_checkins").select {
+            filter { eq("ritual_id", ritualId) }
+            order("checkin_date", Order.DESCENDING)
+        }.decodeList()
+
+    suspend fun setRitualCheckIn(record: RitualCheckInRecord, completed: Boolean) {
+        if (completed) {
+            client.from("ritual_checkins").upsert(record)
+        } else {
+            client.from("ritual_checkins").delete {
+                filter {
+                    eq("ritual_id", record.ritualId)
+                    eq("user_id", record.userId)
+                    eq("checkin_date", record.checkinDate)
+                }
+            }
+        }
+    }
+
     suspend fun deleteTravelPlan(planId: String) {
         client.from("travel_plans").delete {
             filter { eq("id", planId) }
@@ -192,4 +273,65 @@ data class TravelChecklistRecord(
     @SerialName("completed_by") val completedBy: String? = null,
     @SerialName("completed_at") val completedAt: String? = null,
     @SerialName("updated_at") val updatedAt: String = java.time.Instant.now().toString()
+)
+
+
+@Serializable
+data class SharedTaskRecord(
+    val id: String,
+    @SerialName("pair_id") val pairId: String,
+    @SerialName("space_id") val spaceId: String,
+    @SerialName("list_id") val listId: String,
+    val title: String,
+    val note: String = "",
+    val mode: String = "TODO",
+    @SerialName("created_by") val createdBy: String,
+    @SerialName("assigned_to") val assignedTo: String? = null,
+    val urgency: String = "SOON",
+    val category: String = "General",
+    val quantity: String = "1",
+    val unit: String = "pc",
+    val aisle: String = "PRODUCE",
+    @SerialName("estimated_cost") val estimatedCost: Double = 0.0,
+    @SerialName("store_tag") val storeTag: String = "",
+    @SerialName("is_completed") val isCompleted: Boolean = false,
+    @SerialName("completed_by") val completedBy: String? = null,
+    @SerialName("completed_at") val completedAt: String? = null,
+    @SerialName("reaction_chip") val reactionChip: String? = null,
+    @SerialName("due_label") val dueLabel: String = "",
+    @SerialName("updated_at") val updatedAt: String = java.time.Instant.now().toString()
+)
+
+@Serializable
+data class NudgeRecord(
+    val id: String,
+    @SerialName("pair_id") val pairId: String,
+    @SerialName("sender_user_id") val senderUserId: String,
+    @SerialName("receiver_user_id") val receiverUserId: String,
+    val message: String,
+    @SerialName("linked_task_id") val linkedTaskId: String? = null,
+    val urgency: String = "URGENT_PING",
+    @SerialName("is_acknowledged") val isAcknowledged: Boolean = false,
+    @SerialName("reply_chip") val replyChip: String? = null,
+    @SerialName("created_at") val createdAt: String = java.time.Instant.now().toString(),
+    @SerialName("acknowledged_at") val acknowledgedAt: String? = null
+)
+
+@Serializable
+data class RitualRecord(
+    val id: String,
+    @SerialName("pair_id") val pairId: String,
+    val title: String,
+    @SerialName("time_window") val timeWindow: String = "",
+    @SerialName("created_by") val createdBy: String,
+    @SerialName("updated_at") val updatedAt: String = java.time.Instant.now().toString()
+)
+
+@Serializable
+data class RitualCheckInRecord(
+    val id: String = UUID.randomUUID().toString(),
+    @SerialName("ritual_id") val ritualId: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("checkin_date") val checkinDate: String,
+    @SerialName("completed_at") val completedAt: String = java.time.Instant.now().toString()
 )
