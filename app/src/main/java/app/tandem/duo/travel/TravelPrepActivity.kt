@@ -9,8 +9,6 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -74,15 +72,11 @@ private fun TravelPrepScreen() {
     var partnerName by remember { mutableStateOf("Partner") }
     var syncMessage by remember { mutableStateOf("Connecting to your shared space…") }
     var isSyncing by remember { mutableStateOf(true) }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val dateFormat = remember { SimpleDateFormat("EEE, dd MMM • hh:mm a", Locale.getDefault()) }
 
     fun refresh() { plans = TravelPlanStore.all(context) }
 
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
         runCatching {
             val user = TandemSupabase.currentUser() ?: error("Sign in to sync your travel plans.")
             currentUserId = user.id
@@ -271,9 +265,6 @@ private fun TravelPrepScreen() {
                 )
                 TravelPlanStore.save(context, plan)
                 if (recipientId == uid) TravelReminderScheduler.schedule(context, plan)
-                if (Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-                    permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                }
                 refresh()
                 showCreate = false
                 (context as? ComponentActivity)?.lifecycleScope?.launch {
