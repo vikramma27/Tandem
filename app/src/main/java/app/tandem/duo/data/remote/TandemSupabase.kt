@@ -10,7 +10,7 @@ import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.FilterOperator
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.postgrest.query.filter.FilterOperation
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.selectAsFlow
@@ -100,9 +100,11 @@ object TandemSupabase {
             filter { eq("pair_id", pairId) }
         }.decodeList<PairMemberRecord>()
         if (members.isEmpty()) return emptyList()
-        return client.from("profiles").select {
-            filter { isIn("id", members.map { it.userId }) }
-        }.decodeList()
+        return members.mapNotNull { member ->
+            client.from("profiles").select {
+                filter { eq("id", member.userId) }
+            }.decodeList<ProfileRecord>().firstOrNull()
+        }
     }
 
     suspend fun saveTravelPlan(plan: TravelPlanRecord, checklist: List<TravelChecklistRecord>) {
