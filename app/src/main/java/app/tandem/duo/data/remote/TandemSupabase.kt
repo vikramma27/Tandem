@@ -139,6 +139,12 @@ object TandemSupabase {
             filter = FilterOperation("pair_id", FilterOperator.EQ, pairId)
         )
 
+    @OptIn(SupabaseExperimental::class)
+    fun watchTravelChecklistItems(): Flow<List<TravelChecklistRecord>> =
+        client.from("travel_checklist_items").selectAsFlow(
+            primaryKey = TravelChecklistRecord::id
+        )
+
     suspend fun deleteTravelPlan(planId: String) {
         client.from("travel_plans").delete {
             filter { eq("id", planId) }
