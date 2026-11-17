@@ -208,7 +208,7 @@ object TandemSupabase {
 
     suspend fun setRitualCheckIn(record: RitualCheckInRecord, completed: Boolean) {
         if (completed) {
-            client.from("ritual_checkins").upsert(record)
+            client.from("ritual_checkins").insert(record)
         } else {
             client.from("ritual_checkins").delete {
                 filter {
