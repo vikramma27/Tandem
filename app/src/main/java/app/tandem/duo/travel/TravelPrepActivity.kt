@@ -377,7 +377,8 @@ private suspend fun syncRemotePlans(
         }
         if (isRecipient) {
             TravelReminderScheduler.schedule(context, merged)
-            if (local == null && TravelPlanStore.markSharedNotificationShown(context, merged.id)) {
+            val becameRecipient = local?.recipientUserId != currentUserId
+            if (becameRecipient && currentUserId != null && TravelPlanStore.markSharedNotificationShown(context, merged.id, currentUserId)) {
                 TravelReminderScheduler.notifyPlanShared(context, merged)
             }
         } else TravelReminderScheduler.cancel(context, merged)
