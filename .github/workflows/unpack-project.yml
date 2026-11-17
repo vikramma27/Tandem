@@ -28,6 +28,8 @@ jobs:
           cp Tandem-GitHub-Ready.zip source-archive/
           unzip -oq Tandem-GitHub-Ready.zip -d .
           rm -f UNPACK_TANDEM_NOW
+          # The Actions token cannot create or update workflow files; install those via the GitHub App API afterwards.
+          rm -f .github/workflows/build-apk.yml .github/workflows/pages.yml
           cat > .gitignore <<'EOF'
           .gradle/
           **/build/
