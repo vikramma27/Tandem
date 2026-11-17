@@ -17,6 +17,7 @@ import app.tandem.duo.ui.TandemViewModel
 import app.tandem.duo.ui.screens.MainTandemScreen
 import app.tandem.duo.ui.screens.TandemAuthScreen
 import app.tandem.duo.ui.theme.TandemTheme
+import app.tandem.duo.travel.TravelSyncWorker
 import io.github.jan.supabase.auth.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         TandemSupabase.client.handleDeeplinks(intent)
+        TravelSyncWorker.schedule(this)
         tandemViewModel = ViewModelProvider(this)[TandemViewModel::class.java]
         setContent {
             TandemTheme {
