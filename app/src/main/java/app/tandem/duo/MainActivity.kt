@@ -1,9 +1,13 @@
 package app.tandem.duo
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -13,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.core.app.NotificationManagerCompat
 import app.tandem.duo.data.remote.TandemSupabase
 import app.tandem.duo.ui.TandemViewModel
 import app.tandem.duo.ui.screens.MainTandemScreen
@@ -35,6 +41,12 @@ class MainActivity : ComponentActivity() {
                 val vm: TandemViewModel = viewModel()
                 val user = vm.authUser.collectAsState()
                 val checking = vm.authChecking.collectAsState()
+                val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+                LaunchedEffect(user.value?.id) {
+                    if (user.value != null && Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(this@MainActivity).areNotificationsEnabled()) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
                 if (checking.value) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
