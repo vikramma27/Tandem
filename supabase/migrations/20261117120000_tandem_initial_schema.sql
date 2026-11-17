@@ -105,7 +105,8 @@ create table public.rituals (
   title text not null,
   time_window text not null default '',
   created_by uuid not null references auth.users(id) on delete cascade,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 create table public.ritual_checkins (
   id uuid primary key default gen_random_uuid(),
@@ -291,9 +292,15 @@ with check(exists(select 1 from public.travel_plans tp where tp.id=travel_checkl
 create policy shared_tasks_pair_access on public.shared_tasks for all to authenticated
 using(private.is_pair_member(pair_id,(select auth.uid())))
 with check(private.is_pair_member(pair_id,(select auth.uid())) and (created_by=(select auth.uid()) or private.is_pair_member(pair_id,created_by)));
-create policy nudges_pair_access on public.partner_nudges for all to authenticated
-using(private.is_pair_member(pair_id,(select auth.uid())))
+create policy nudges_pair_select on public.partner_nudges for select to authenticated
+using(private.is_pair_member(pair_id,(select auth.uid())));
+create policy nudges_insert_sender on public.partner_nudges for insert to authenticated
 with check(sender_user_id=(select auth.uid()) and private.is_pair_member(pair_id,(select auth.uid())) and private.is_pair_member(pair_id,receiver_user_id));
+create policy nudges_update_member on public.partner_nudges for update to authenticated
+using(private.is_pair_member(pair_id,(select auth.uid())))
+with check(private.is_pair_member(pair_id,(select auth.uid())));
+create policy nudges_delete_sender on public.partner_nudges for delete to authenticated
+using(sender_user_id=(select auth.uid()));
 create policy rituals_pair_access on public.rituals for all to authenticated
 using(private.is_pair_member(pair_id,(select auth.uid())))
 with check(private.is_pair_member(pair_id,(select auth.uid())));
@@ -349,6 +356,19 @@ $$;
 create trigger travel_plan_notifications after insert or update of title,destination,departure_at,reminder_at,recipient_user_id,status
 on public.travel_plans for each row execute procedure private.queue_travel_plan_notifications();
 
+create or replace function private.bump_ritual_updated_at()
+returns trigger language plpgsql security definer set search_path=public
+as $
+declare target_ritual_id text;
+begin
+  target_ritual_id := case when tg_op='DELETE' then old.ritual_id else new.ritual_id end;
+  update public.rituals set updated_at=now() where id=target_ritual_id;
+  if tg_op='DELETE' then return old; else return new; end if;
+end;
+$;
+create trigger ritual_checkins_bump_parent after insert or delete on public.ritual_checkins
+for each row execute procedure private.bump_ritual_updated_at();
+
 create or replace function private.queue_nudge_notification()
 returns trigger language plpgsql security definer set search_path=public
 as $$
@@ -365,5 +385,6 @@ for each row execute procedure private.queue_nudge_notification();
 do $$ begin alter publication supabase_realtime add table public.travel_plans; exception when duplicate_object then null; when undefined_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.travel_checklist_items; exception when duplicate_object then null; when undefined_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.shared_tasks; exception when duplicate_object then null; when undefined_object then null; end $$;
-do $$ begin alter publication supabase_realtime add table public.partner_nudges; exception when duplicate_object then null; when undefined_object then null; end $$;
+do $ begin alter publication supabase_realtime add table public.partner_nudges; exception when duplicate_object then null; when undefined_object then null; end $;
+do $ begin alter publication supabase_realtime add table public.rituals; exception when duplicate_object then null; when undefined_object then null; end $;
 do $$ begin alter publication supabase_realtime add table public.notification_events; exception when duplicate_object then null; when undefined_object then null; end $$;
