@@ -30,7 +30,10 @@ object TandemSupabase {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
         ) {
-            install(Auth)
+            install(Auth) {
+                host = "auth-callback"
+                scheme = "tandem"
+            }
             install(Postgrest)
             install(Realtime)
         }
