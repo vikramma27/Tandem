@@ -19,8 +19,10 @@ This checklist is a release gate, not a statement that the checks have passed.
 - [ ] User A creates a plan for User B
 - [ ] User B receives the shared-plan notification while Tandem is foregrounded
 - [ ] User B sees the plan and checklist on the Travel Prep screen
+- [ ] Checklist changes appear immediately on the partner while Travel Prep is open
 - [ ] Checklist changes converge in both directions
 - [ ] Plan deletion is reflected on the other device
+- [ ] Create/update/delete while offline; reconnect and confirm the local outbox replays changes
 - [ ] Device reconnects after being offline and catches up through WorkManager
 - [ ] Editing a plan does not create duplicate or stale reminder events
 
@@ -30,6 +32,7 @@ This checklist is a release gate, not a statement that the checks have passed.
 - [ ] Inexact fallback path behaves correctly
 - [ ] Reboot, app replacement, time and timezone changes reschedule alarms
 - [ ] Alarm cancellation works after deleting a plan
+- [ ] Cancel/delete a plan and confirm pending server notification events are removed
 - [ ] Force-stop / vendor battery restrictions are documented as OS limitations
 
 ## Release
