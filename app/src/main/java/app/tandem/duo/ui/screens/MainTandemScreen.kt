@@ -673,8 +673,8 @@ private fun NewSpaceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CharcoalSurface,
-        titleContentColor = IvoryText,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text("Create Space", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -838,7 +838,7 @@ private fun SendNudgeDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL", color = MutedPewter) }
+            TextButton(onClick = onDismiss) { Text("CANCEL") }
         }
     )
 }
