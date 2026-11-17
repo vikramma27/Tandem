@@ -351,7 +351,7 @@ private fun RitualsScreen(
                                 if (ritual.timeWindow.isNotBlank()) Text(ritual.timeWindow, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (ritual.streakDays > 0) {
-                                AssistChip(onClick = {}, label = { Text(ritual.streakDays.toString() + " day streak") }, leadingIcon = { Icon(Icons.Default.Favorite, null) })
+                                MetaChip(ritual.streakDays.toString() + " day streak")
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -494,6 +494,17 @@ private fun EmptyStateCard(title: String, message: String, actionLabel: String, 
 }
 
 @Composable
+private fun MetaChip(label: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = RoundedCornerShape(50)
+    ) {
+        Text(label, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
 private fun TandemTaskCard(
     item: TaskItemEntity, selfLabel: String, partnerLabel: String,
     onToggle: () -> Unit, onReact: (String) -> Unit
@@ -525,11 +536,9 @@ private fun TandemTaskCard(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                AssistChip(onClick = {}, label = { Text(item.mode.label) })
-                AssistChip(onClick = {}, label = { Text(assignee) })
-                if (item.urgency == UrgencyLevel.URGENT_PING) {
-                    AssistChip(onClick = {}, label = { Text("Needs attention") }, leadingIcon = { Icon(Icons.Default.NotificationsActive, null) })
-                }
+                MetaChip(item.mode.label)
+                MetaChip(assignee)
+                if (item.urgency == UrgencyLevel.URGENT_PING) MetaChip("Needs attention")
             }
             if (item.isCompleted) Text("Done", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
             else if (!item.reactionChip.isNullOrBlank()) Text(item.reactionChip.orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
