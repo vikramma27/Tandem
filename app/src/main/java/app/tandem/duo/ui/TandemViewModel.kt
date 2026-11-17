@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.tandem.duo.data.local.*
-import app.tandem.duo.data.sync.DuoSyncEngine
 import app.tandem.duo.data.remote.TandemSupabase
 import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.auth.auth
@@ -14,8 +13,6 @@ import java.util.UUID
 
 class TandemViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = TandemDatabase.getInstance(application).dao()
-    val syncEngine = DuoSyncEngine()
-
     private val _authUser = MutableStateFlow<UserInfo?>(null)
     val authUser: StateFlow<UserInfo?> = _authUser.asStateFlow()
     private val _authChecking = MutableStateFlow(true)
@@ -170,28 +167,6 @@ class TandemViewModel(application: Application) : AndroidViewModel(application) 
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun saveIdentityAndPairing(
-        selfName: String,
-        partnerName: String,
-        pairingCode: String,
-        isPaired: Boolean,
-        endpointUrl: String
-    ) {
-        viewModelScope.launch {
-            val code = pairingCode.ifBlank { syncEngine.generateInviteCode() }
-            val cfg = UserConfigEntity(
-                id = 1,
-                selfDisplayName = selfName.trim(),
-                isPaired = isPaired && partnerName.isNotBlank(),
-                partnerDisplayName = if (isPaired) partnerName.trim() else "",
-                pairingCode = code,
-                relayEndpointUrl = endpointUrl.trim()
-            )
-            dao.saveUserConfig(cfg)
-            syncEngine.configurePairing(code, cfg.isPaired, cfg.relayEndpointUrl)
-        }
-    }
-
     fun selectSpace(spaceId: String?) {
         _selectedSpaceId.value = spaceId
     }
@@ -249,7 +224,6 @@ class TandemViewModel(application: Application) : AndroidViewModel(application) 
                 storeTag = storeTag.trim()
             )
             dao.upsertTask(newItem)
-            syncEngine.pushTaskMutation(newItem)
         }
     }
 
@@ -263,7 +237,6 @@ class TandemViewModel(application: Application) : AndroidViewModel(application) 
                 updatedAt = System.currentTimeMillis()
             )
             dao.upsertTask(updated)
-            syncEngine.pushTaskMutation(updated)
         }
     }
 
@@ -290,7 +263,6 @@ class TandemViewModel(application: Application) : AndroidViewModel(application) 
                 urgency = urgency
             )
             dao.insertNudge(ping)
-            syncEngine.pushNudge(ping)
         }
     }
 
