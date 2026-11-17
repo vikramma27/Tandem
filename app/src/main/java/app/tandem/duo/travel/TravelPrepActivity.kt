@@ -33,6 +33,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import java.util.concurrent.TimeUnit
 import app.tandem.duo.ui.theme.TandemTheme
 import app.tandem.duo.data.remote.TandemSupabase
 import app.tandem.duo.data.remote.TravelPlanRecord
@@ -459,5 +468,49 @@ private fun StatusLine(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+
+/**
+ * A 15-minute network-constrained safety net. Realtime handles active sessions;
+ * this worker catches up on plans created while this device was offline.
+ */
+class TravelSyncWorker(
+    appContext: android.content.Context,
+    workerParams: WorkerParameters
+) : CoroutineWorker(appContext, workerParams) {
+
+    override suspend fun doWork(): Result {
+        return runCatching {
+            val user = TandemSupabase.currentUser() ?: return Result.success()
+            val membership = TandemSupabase.currentPair() ?: return Result.success()
+            val partner = TandemSupabase.pairProfiles(membership.pairId)
+                .firstOrNull { it.id != user.id }?.displayName?.ifBlank { "Partner" } ?: "Partner"
+            val plans = TandemSupabase.loadTravelPlans(membership.pairId)
+            syncRemotePlans(applicationContext, membership.pairId, plans, user.id, partner)
+        }.fold(
+            onSuccess = { Result.success() },
+            onFailure = { Result.retry() }
+        )
+    }
+
+    companion object {
+        private const val UNIQUE_WORK_NAME = "tandem-travel-background-sync"
+
+        fun schedule(context: android.content.Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val request = PeriodicWorkRequestBuilder<TravelSyncWorker>(15, TimeUnit.MINUTES)
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                UNIQUE_WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
+        }
     }
 }
