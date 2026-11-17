@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -555,6 +556,11 @@ private fun AddRitualDialog(onDismiss: () -> Unit, onCreate: (String, String) ->
 }
 
 @Composable
+private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+}
+
+@Composable
 private fun ProfileAndPairingDialog(
     currentConfig: UserConfigEntity,
     isPaired: Boolean,
@@ -571,12 +577,12 @@ private fun ProfileAndPairingDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CharcoalSurface,
-        titleContentColor = IvoryText,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text("Your Tandem connection", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Your profile", color = ChampagneGold, style = MaterialTheme.typography.labelLarge)
+                Text("Your profile", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                 OutlinedTextField(
                     value = selfName,
                     onValueChange = { selfName = it },
@@ -590,25 +596,25 @@ private fun ProfileAndPairingDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("SAVE NAME") }
 
-                Divider(color = Color.White.copy(alpha = 0.12f))
-                Text("Connect your second person", color = ChampagneGold, style = MaterialTheme.typography.labelLarge)
+                Divider(color = MaterialTheme.colorScheme.outlineVariant)
+                Text("Connect your second person", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                 if (isPaired) {
                     Text(
                         "You're connected with ${currentConfig.partnerDisplayName.ifBlank { "your partner" }}. Shared plans and updates will appear for both of you.",
-                        color = SageMint,
+                        color = MaterialTheme.colorScheme.tertiary,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 } else {
                     Text(
                         "Create a private invite and share it with your partner, or enter an invite they created. Codes expire after 48 hours and can only be used once.",
-                        color = MutedPewter,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Button(
                         onClick = onCreateInvite,
                         enabled = !busy,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = TerracottaCoral, contentColor = ObsidianBg)
+                        colors = ButtonDefaults.buttonColors()
                     ) {
                         if (busy) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         else Text(if (inviteCode == null) "CREATE INVITE CODE" else "GENERATE NEW INVITE")
@@ -616,12 +622,12 @@ private fun ProfileAndPairingDialog(
                     if (!inviteCode.isNullOrBlank()) {
                         Column(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                                .background(ElevatedSlate).padding(14.dp),
+                                .background(MaterialTheme.colorScheme.surfaceVariant).padding(14.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("YOUR PRIVATE INVITE", style = MaterialTheme.typography.labelSmall, color = MutedPewter)
-                            Text(inviteCode, style = MaterialTheme.typography.headlineSmall, color = IvoryText, fontWeight = FontWeight.Bold)
-                            Text("Share this code with your partner", style = MaterialTheme.typography.bodySmall, color = SageMint)
+                            Text("YOUR PRIVATE INVITE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(inviteCode, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                            Text("Share this code with your partner", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
                         }
                     }
                     OutlinedTextField(
@@ -638,12 +644,12 @@ private fun ProfileAndPairingDialog(
                     ) { Text("JOIN WITH INVITE CODE") }
                 }
                 if (!message.isNullOrBlank()) {
-                    Text(message, style = MaterialTheme.typography.bodySmall, color = CrimsonPulse)
+                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("DONE", color = ChampagneGold) }
+            TextButton(onClick = onDismiss) { Text("DONE") }
         }
     )
 }
@@ -670,13 +676,13 @@ private fun NewSpaceDialog(
         confirmButton = {
             Button(
                 onClick = { onCreate(name, subtitle) },
-                colors = ButtonDefaults.buttonColors(containerColor = TerracottaCoral, contentColor = ObsidianBg)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
             ) {
                 Text("CREATE", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL", color = MutedPewter) }
+            TextButton(onClick = onDismiss) { Text("CANCEL") }
         }
     )
 }
@@ -815,7 +821,7 @@ private fun SendNudgeDialog(
         confirmButton = {
             Button(
                 onClick = { onSend(message, urgency) },
-                colors = ButtonDefaults.buttonColors(containerColor = ChampagneGold, contentColor = ObsidianBg)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
             ) {
                 Text("SEND PING", fontWeight = FontWeight.Bold)
             }
