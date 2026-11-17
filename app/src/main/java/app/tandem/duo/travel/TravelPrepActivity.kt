@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -99,9 +100,20 @@ private fun TravelPrepScreen() {
                 val initial = TandemSupabase.loadTravelPlans(membership.pairId)
                 syncRemotePlans(context, membership.pairId, initial, user.id, partnerName)
                 refresh()
-                TandemSupabase.watchTravelPlans(membership.pairId).collect { updated ->
-                    syncRemotePlans(context, membership.pairId, updated, user.id, partnerName)
-                    refresh()
+                coroutineScope {
+                    launch {
+                        TandemSupabase.watchTravelPlans(membership.pairId).collect { updated ->
+                            syncRemotePlans(context, membership.pairId, updated, user.id, partnerName)
+                            refresh()
+                        }
+                    }
+                    launch {
+                        TandemSupabase.watchTravelChecklistItems().collect {
+                            val latestPlans = TandemSupabase.loadTravelPlans(membership.pairId)
+                            syncRemotePlans(context, membership.pairId, latestPlans, user.id, partnerName)
+                            refresh()
+                        }
+                    }
                 }
             }
         }.onFailure {
