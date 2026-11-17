@@ -165,7 +165,7 @@ private fun CreateTravelPlanDialog(
     val context = LocalContext.current
     var title by remember { mutableStateOf("") }
     var recipient by remember { mutableStateOf("Partner") }
-    var departure by remember { mutableStateOf(Calendar.getInstance().apply { add(Calendar.HOUR_OF_DAY, 3); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }) }
+    var departureMillis by remember { mutableLongStateOf(Calendar.getInstance().apply { add(Calendar.HOUR_OF_DAY, 3); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }.timeInMillis) }
     var reminderLead by remember { mutableIntStateOf(60) }
     var checklistText by remember { mutableStateOf("Phone and charger\nWallet / ID\nKeys\nTickets / booking details\nWater bottle\nMedicines / essentials") }
     val formatter = remember { SimpleDateFormat("EEE, dd MMM • hh:mm a", Locale.getDefault()) }
@@ -178,15 +178,21 @@ private fun CreateTravelPlanDialog(
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Trip / reason") }, singleLine = true)
                 OutlinedTextField(value = recipient, onValueChange = { recipient = it }, label = { Text("Who is travelling?") }, singleLine = true)
                 OutlinedButton(onClick = {
+                    val current = Calendar.getInstance().apply { timeInMillis = departureMillis }
                     DatePickerDialog(context, { _, y, m, d ->
-                        departure.set(Calendar.YEAR, y); departure.set(Calendar.MONTH, m); departure.set(Calendar.DAY_OF_MONTH, d)
-                    }, departure.get(Calendar.YEAR), departure.get(Calendar.MONTH), departure.get(Calendar.DAY_OF_MONTH)).show()
-                }, modifier = Modifier.fillMaxWidth()) { Text("Date: ${formatter.format(departure.time)}") }
+                        val updated = Calendar.getInstance().apply { timeInMillis = departureMillis }
+                        updated.set(Calendar.YEAR, y); updated.set(Calendar.MONTH, m); updated.set(Calendar.DAY_OF_MONTH, d)
+                        departureMillis = updated.timeInMillis
+                    }, current.get(Calendar.YEAR), current.get(Calendar.MONTH), current.get(Calendar.DAY_OF_MONTH)).show()
+                }, modifier = Modifier.fillMaxWidth()) { Text("Date: ${formatter.format(Date(departureMillis))}") }
                 OutlinedButton(onClick = {
+                    val current = Calendar.getInstance().apply { timeInMillis = departureMillis }
                     TimePickerDialog(context, { _, h, m ->
-                        departure.set(Calendar.HOUR_OF_DAY, h); departure.set(Calendar.MINUTE, m); departure.set(Calendar.SECOND, 0)
-                    }, departure.get(Calendar.HOUR_OF_DAY), departure.get(Calendar.MINUTE), false).show()
-                }, modifier = Modifier.fillMaxWidth()) { Text("Departure time: ${SimpleDateFormat("hh:mm a", Locale.getDefault()).format(departure.time)}") }
+                        val updated = Calendar.getInstance().apply { timeInMillis = departureMillis }
+                        updated.set(Calendar.HOUR_OF_DAY, h); updated.set(Calendar.MINUTE, m); updated.set(Calendar.SECOND, 0)
+                        departureMillis = updated.timeInMillis
+                    }, current.get(Calendar.HOUR_OF_DAY), current.get(Calendar.MINUTE), false).show()
+                }, modifier = Modifier.fillMaxWidth()) { Text("Departure time: ${SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(departureMillis))}") }
                 Text("Remind before departure", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(15, 30, 60, 120).forEach { mins ->
@@ -204,10 +210,10 @@ private fun CreateTravelPlanDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = title.isNotBlank() && recipient.isNotBlank() && departure.timeInMillis > System.currentTimeMillis() + reminderLead * 60_000L,
+                enabled = title.isNotBlank() && recipient.isNotBlank() && departureMillis > System.currentTimeMillis() + reminderLead * 60_000L,
                 onClick = {
                     val tasks = checklistText.lines().map { it.trim() }.filter { it.isNotBlank() }.distinct().map { TravelChecklistItem(title = it) }
-                    onCreate(title.trim(), recipient.trim(), departure.timeInMillis, departure.timeInMillis - reminderLead * 60_000L, tasks)
+                    onCreate(title.trim(), recipient.trim(), departureMillis, departureMillis - reminderLead * 60_000L, tasks)
                 }
             ) { Text("SAVE & SCHEDULE") }
         },
@@ -258,6 +264,12 @@ private fun NotificationReliabilityDialog(onDismiss: () -> Unit) {
                 TextButton(onClick = {
                     runCatching { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
                 }) { Text("NOTIFICATION SETTINGS") }
+                TextButton(onClick = {
+                    runCatching {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
+                        else context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    }
+                }) { Text(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "EXACT ALARM ACCESS" else "BATTERY OPTIMISATION SETTINGS") }
                 TextButton(onClick = {
                     runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
                 }) { Text("BATTERY OPTIMISATION SETTINGS") }
