@@ -9,7 +9,7 @@ The production project for Tandem is in the Mumbai region:
 
 ## Schema
 
-Apply `migrations/20261117120000_tandem_initial_schema.sql` to a fresh project. The schema and follow-on migrations include:
+Apply **all** SQL files in `supabase/migrations/` in ascending version order. The repository now tracks the exact 21 migrations applied to the live project through version `20261117125045`; do not apply only a single baseline file. The schema and follow-on migrations include:
 
 - Supabase Auth profiles and one-to-one pair membership
 - hashed, single-use pairing invitations with a 48-hour expiry
@@ -50,7 +50,7 @@ For prompt push delivery when the recipient app is closed or Android delays back
 
 ## Applied security hardening
 
-The follow-on migration `20261117124532_tandem_restrict_partner_acknowledgement_updates.sql` narrows partner-nudge updates to the intended receiver and limits the writable acknowledgement fields. Notification-event updates are limited to the `read_at` field. This avoids granting a paired user broad write access to message contents or notification payloads.
+The follow-on migration `20261117124532_tandem_restrict_partner_acknowledgement_updates.sql` narrows partner-nudge updates to the intended receiver and limits the writable acknowledgement fields. Notification-event updates are limited to the `read_at` field. The migration `20261117125045_tandem_revoke_anon_public_data_access.sql` removes anonymous table and sequence grants and revokes those grants for future objects. These controls avoid granting unauthenticated or paired users broader write access than needed.
 
 ## Delivery boundaries
 
