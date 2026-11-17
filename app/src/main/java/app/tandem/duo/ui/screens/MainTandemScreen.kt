@@ -36,6 +36,10 @@ import app.tandem.duo.ui.components.DuoKineticOrbitEmblem
 import app.tandem.duo.ui.components.LiveAttentionNudgeBanner
 import app.tandem.duo.ui.theme.*
 
+private enum class TandemDestination(val label: String) {
+    TODAY("Today"), SHARED("Shared"), RITUALS("Rituals"), TRAVEL("Travel"), YOU("You")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainTandemScreen(viewModel: TandemViewModel) {
@@ -47,443 +51,496 @@ fun MainTandemScreen(viewModel: TandemViewModel) {
     val items by viewModel.filteredItems.collectAsState()
     val allItems by viewModel.allItems.collectAsState()
     val activeNudges by viewModel.activeNudges.collectAsState()
+    val rituals by viewModel.rituals.collectAsState()
     val pairInviteCode by viewModel.pairInviteCode.collectAsState()
     val pairBusy by viewModel.pairBusy.collectAsState()
     val pairMessage by viewModel.pairMessage.collectAsState()
+    val authUser by viewModel.authUser.collectAsState()
 
+    var destination by remember { mutableStateOf(TandemDestination.TODAY) }
     var showProfilePairingSheet by remember { mutableStateOf(false) }
     var showComposerSheet by remember { mutableStateOf(false) }
     var showNudgeModal by remember { mutableStateOf(false) }
     var showNewSpaceModal by remember { mutableStateOf(false) }
+    var showNewRitualDialog by remember { mutableStateOf(false) }
 
-    val selfLabel = config.selfDisplayName.ifBlank { "Me (Unconfigured)" }
-    val partnerLabel = if (config.isPaired && config.partnerDisplayName.isNotBlank()) {
-        config.partnerDisplayName
-    } else {
-        "Not Paired"
-    }
-
+    val selfLabel = config.selfDisplayName.ifBlank { "You" }
+    val partnerLabel = config.partnerDisplayName.ifBlank { "Your person" }
+    val openCount = allItems.count { !it.isCompleted }
     val completedCount = allItems.count { it.isCompleted }
-    val harmonyRatio = if (allItems.isEmpty()) 0.15f else completedCount.toFloat() / allItems.size.toFloat()
 
     Scaffold(
-        containerColor = ObsidianBg,
-        floatingActionButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FloatingActionButton(
-                    onClick = { context.startActivity(Intent(context, TravelPrepActivity::class.java)) },
-                    containerColor = ElevatedSlate,
-                    contentColor = SageMint
-                ) {
-                    Icon(Icons.Default.FlightTakeoff, contentDescription = "Travel prep")
-                }
-                if (config.isPaired) {
-                    ExtendedFloatingActionButton(
-                        onClick = { showNudgeModal = true },
-                        containerColor = ElevatedSlate,
-                        contentColor = ChampagneGold,
-                        icon = { Icon(Icons.Default.NotificationsActive, contentDescription = "Ping") },
-                        text = { Text("PING", fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+                TandemDestination.entries.forEach { item ->
+                    val icon = when (item) {
+                        TandemDestination.TODAY -> Icons.Default.Home
+                        TandemDestination.SHARED -> Icons.Default.List
+                        TandemDestination.RITUALS -> Icons.Default.Favorite
+                        TandemDestination.TRAVEL -> Icons.Default.FlightTakeoff
+                        TandemDestination.YOU -> Icons.Default.Person
+                    }
+                    NavigationBarItem(
+                        selected = destination == item,
+                        onClick = {
+                            destination = item
+                            if (item == TandemDestination.TRAVEL) context.startActivity(Intent(context, TravelPrepActivity::class.java))
+                        },
+                        icon = { Icon(icon, contentDescription = item.label) },
+                        label = { Text(item.label) },
+                        alwaysShowLabel = true
                     )
                 }
+            }
+        },
+        floatingActionButton = {
+            if (destination == TandemDestination.TODAY || destination == TandemDestination.SHARED) {
                 ExtendedFloatingActionButton(
                     onClick = { showComposerSheet = true },
-                    containerColor = TerracottaCoral,
-                    contentColor = ObsidianBg,
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Add") },
-                    text = { Text("NEW ITEM", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Add a little thing") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 110.dp)
-        ) {
-            // 1. Header with Single-User Default & Pairing Trigger
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        DuoKineticOrbitEmblem(
-                            isPaired = config.isPaired,
-                            harmonyProgress = harmonyRatio
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(text = "TANDEM", style = MaterialTheme.typography.headlineLarge)
-                            Text(
-                                text = if (config.isPaired) "$selfLabel + $partnerLabel" else "$selfLabel • Solo / Unpaired",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (config.isPaired) SageMint else ChampagneGold
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(ElevatedSlate)
-                            .border(1.dp, ChampagneGold.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                            .clickable { showProfilePairingSheet = true }
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.PersonAdd, contentDescription = null, tint = ChampagneGold, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (config.isPaired) "PAIRED" else "SETUP & PAIR",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = IvoryText
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 2. First-Run Profile & Pairing Setup Card if name is not configured yet
-            if (config.selfDisplayName.isBlank() || !config.isPaired) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(CharcoalSurface)
-                            .border(1.dp, ChampagneGold.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "IDENTITY & TWO-PERSON PAIRING",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = ChampagneGold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (config.selfDisplayName.isBlank())
-                                "Set your display name to start using Tandem, then generate or enter a pairing code to connect with your second person."
-                            else
-                                "You are currently in solo mode (${config.selfDisplayName}). Pair with a second user anytime to unlock shared lists and attention pings.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MutedPewter
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Button(
-                            onClick = { showProfilePairingSheet = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = TerracottaCoral, contentColor = ObsidianBg)
-                        ) {
-                            Text("CONFIGURE NAME & PAIRING", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            // 3. Active Nudges
-            items(activeNudges, key = { it.id }) { nudge ->
-                LiveAttentionNudgeBanner(
-                    nudge = nudge,
-                    senderLabel = if (nudge.sender == MemberSlot.SELF) selfLabel else partnerLabel,
-                    onQuickReply = { reply -> viewModel.acknowledgeNudge(nudge, reply) }
-                )
-            }
-
-            // 4. Spaces Row (Clean by default, user creates spaces)
-            item {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "SPACES", style = MaterialTheme.typography.labelSmall)
-                        Text(
-                            text = "+ NEW SPACE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TerracottaCoral,
-                            modifier = Modifier.clickable { showNewSpaceModal = true }
-                        )
-                    }
-                    if (spaces.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(CharcoalSurface)
-                                .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(16.dp))
-                                .clickable { showNewSpaceModal = true }
-                                .padding(14.dp)
-                        ) {
-                            Text(
-                                text = "No spaces yet. Tap '+ NEW SPACE' to create your first space.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MutedPewter
-                            )
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            spaces.forEach { space ->
-                                val isSelected = space.id == selectedSpaceId
-                                Column(
-                                    modifier = Modifier
-                                        .width(168.dp)
-                                        .clip(RoundedCornerShape(18.dp))
-                                        .background(if (isSelected) ElevatedSlate else CharcoalSurface)
-                                        .border(
-                                            1.5.dp,
-                                            if (isSelected) Color(space.accentHex) else Color.White.copy(alpha = 0.08f),
-                                            RoundedCornerShape(18.dp)
-                                        )
-                                        .clickable { viewModel.selectSpace(space.id) }
-                                        .padding(14.dp)
-                                ) {
-                                    Text(text = space.name, style = MaterialTheme.typography.titleMedium)
-                                    if (space.subtitle.isNotBlank()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = space.subtitle,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontSize = 12.sp,
-                                            color = MutedPewter,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 5. Mode Filter Pills
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterPill(
-                        label = "ALL (${items.size})",
-                        selected = selectedMode == null,
-                        onClick = { viewModel.selectModeFilter(null) }
-                    )
-                    ListMode.entries.forEach { mode ->
-                        FilterPill(
-                            label = "${mode.badge} • ${mode.label}",
-                            selected = selectedMode == mode,
-                            onClick = { viewModel.selectModeFilter(mode) }
-                        )
-                    }
-                }
-            }
-
-            // 6. Task & Shopping Items (Empty clean state when no items exist)
-            if (items.isEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(CharcoalSurface)
-                            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "YOUR WORKSPACE IS CLEAN",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = ChampagneGold
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Tap 'NEW ITEM' below to add your first task, reminder, or shopping item.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MutedPewter
-                        )
-                    }
-                }
-            } else {
-                items(items, key = { it.id }) { task ->
-                    TandemTaskCard(
-                        item = task,
-                        selfLabel = selfLabel,
-                        partnerLabel = partnerLabel,
-                        onToggle = { viewModel.toggleTaskCompletion(task) },
-                        onReact = { reaction -> viewModel.reactToTask(task, reaction) }
-                    )
-                }
-            }
+    ) { padding ->
+        when (destination) {
+            TandemDestination.TODAY -> TodayDashboard(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                selfLabel = selfLabel, partnerLabel = partnerLabel, isPaired = config.isPaired,
+                openCount = openCount, completedCount = completedCount, spacesCount = spaces.size,
+                tasks = allItems, nudges = activeNudges,
+                onPair = { showProfilePairingSheet = true }, onAdd = { showComposerSheet = true },
+                onNudge = { showNudgeModal = true },
+                onTravel = { context.startActivity(Intent(context, TravelPrepActivity::class.java)) },
+                onToggleTask = { viewModel.toggleTaskCompletion(it) },
+                onReact = { task, reaction -> viewModel.reactToTask(task, reaction) },
+                onReplyNudge = { nudge, reply -> viewModel.acknowledgeNudge(nudge, reply) }
+            )
+            TandemDestination.SHARED -> SharedListsScreen(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                spaces = spaces, selectedSpaceId = selectedSpaceId, selectedMode = selectedMode,
+                tasks = items, selfLabel = selfLabel, partnerLabel = partnerLabel,
+                onSelectSpace = { viewModel.selectSpace(it) }, onSelectMode = { viewModel.selectModeFilter(it) },
+                onNewSpace = { showNewSpaceModal = true }, onAdd = { showComposerSheet = true },
+                onToggleTask = { viewModel.toggleTaskCompletion(it) },
+                onReact = { task, reaction -> viewModel.reactToTask(task, reaction) }
+            )
+            TandemDestination.RITUALS -> RitualsScreen(
+                modifier = Modifier.fillMaxSize().padding(padding), rituals = rituals,
+                isPaired = config.isPaired, partnerLabel = partnerLabel,
+                onAdd = { showNewRitualDialog = true }, onToggleToday = { viewModel.toggleRitualSelf(it) }
+            )
+            TandemDestination.TRAVEL -> TravelHubScreen(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                onOpenTravel = { context.startActivity(Intent(context, TravelPrepActivity::class.java)) }
+            )
+            TandemDestination.YOU -> ProfileScreen(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                name = selfLabel, email = authUser?.email.orEmpty(), partnerName = partnerLabel,
+                isPaired = config.isPaired, onEditProfile = { showProfilePairingSheet = true },
+                onSignOut = { viewModel.signOut() }
+            )
         }
     }
 
     if (showProfilePairingSheet) {
         ProfileAndPairingDialog(
-            currentConfig = config,
-            isPaired = config.isPaired,
-            inviteCode = pairInviteCode,
-            busy = pairBusy,
-            message = pairMessage,
-            onDismiss = { showProfilePairingSheet = false },
-            onSaveName = { name -> viewModel.updateMyDisplayName(name) },
-            onCreateInvite = { viewModel.createPairAndInvite() },
-            onJoinPair = { code -> viewModel.joinPair(code) }
+            currentConfig = config, isPaired = config.isPaired, inviteCode = pairInviteCode,
+            busy = pairBusy, message = pairMessage, onDismiss = { showProfilePairingSheet = false },
+            onSaveName = { viewModel.updateMyDisplayName(it) },
+            onCreateInvite = { viewModel.createPairAndInvite() }, onJoinPair = { viewModel.joinPair(it) }
         )
     }
-
     if (showNewSpaceModal) {
-        NewSpaceDialog(
-            onDismiss = { showNewSpaceModal = false },
-            onCreate = { name, sub ->
-                viewModel.createNewSpace(name, sub)
-                showNewSpaceModal = false
-            }
-        )
+        NewSpaceDialog(onDismiss = { showNewSpaceModal = false }, onCreate = { name, subtitle ->
+            viewModel.createNewSpace(name, subtitle); showNewSpaceModal = false
+        })
     }
-
     if (showComposerSheet) {
         AddItemModalSheet(
-            selfLabel = selfLabel,
-            partnerLabel = partnerLabel,
-            isPaired = config.isPaired,
+            selfLabel = selfLabel, partnerLabel = partnerLabel, isPaired = config.isPaired,
             onDismiss = { showComposerSheet = false },
             onSubmit = { title, note, mode, assignee, urgency, qty, unit, aisle, cost, store ->
-                viewModel.createTaskOrShoppingItem(
-                    title, note, mode, assignee, urgency, qty, unit, aisle, cost, store
-                )
+                viewModel.createTaskOrShoppingItem(title, note, mode, assignee, urgency, qty, unit, aisle, cost, store)
                 showComposerSheet = false
             }
         )
     }
-
     if (showNudgeModal) {
-        SendNudgeDialog(
-            onDismiss = { showNudgeModal = false },
-            onSend = { msg, urgency ->
-                viewModel.sendPartnerNudge(msg, urgency)
-                showNudgeModal = false
-            }
-        )
+        SendNudgeDialog(onDismiss = { showNudgeModal = false }, onSend = { message, urgency ->
+            viewModel.sendPartnerNudge(message, urgency); showNudgeModal = false
+        })
+    }
+    if (showNewRitualDialog) {
+        AddRitualDialog(onDismiss = { showNewRitualDialog = false }, onCreate = { title, timeWindow ->
+            viewModel.addRitual(title, timeWindow); showNewRitualDialog = false
+        })
     }
 }
 
 @Composable
-private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) TerracottaCoral else CharcoalSurface)
-            .border(1.dp, if (selected) TerracottaCoral else Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected) ObsidianBg else IvoryText
-        )
-    }
-}
-
-@Composable
-private fun TandemTaskCard(
-    item: TaskItemEntity,
-    selfLabel: String,
-    partnerLabel: String,
-    onToggle: () -> Unit,
-    onReact: (String) -> Unit
+private fun TodayDashboard(
+    modifier: Modifier, selfLabel: String, partnerLabel: String, isPaired: Boolean,
+    openCount: Int, completedCount: Int, spacesCount: Int,
+    tasks: List<TaskItemEntity>, nudges: List<NudgePingEntity>,
+    onPair: () -> Unit, onAdd: () -> Unit, onNudge: () -> Unit, onTravel: () -> Unit,
+    onToggleTask: (TaskItemEntity) -> Unit, onReact: (TaskItemEntity, String) -> Unit,
+    onReplyNudge: (NudgePingEntity, String) -> Unit
 ) {
-    val badgeColor = when (item.mode) {
-        ListMode.TODO -> TerracottaCoral
-        ListMode.ASK_PARTNER -> ChampagneGold
-        ListMode.SHOPPING -> SageMint
-        ListMode.RITUALS -> Color(0xFF6C8EAD)
-    }
-    val assigneeText = when (item.assignedTo) {
-        MemberSlot.SELF -> selfLabel
-        MemberSlot.PARTNER -> partnerLabel
-        MemberSlot.BOTH -> "Both"
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CharcoalSurface)
-            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(20.dp))
-            .padding(16.dp)
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (item.isCompleted) SageMint else ElevatedSlate)
-                    .border(1.5.dp, if (item.isCompleted) SageMint else badgeColor, RoundedCornerShape(9.dp))
-                    .clickable { onToggle() },
-                contentAlignment = Alignment.Center
-            ) {
-                if (item.isCompleted) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = ObsidianBg, modifier = Modifier.size(18.dp))
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("A little more together.", style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    if (isPaired) "Good things are easier when you share them." else "Your space is ready. Invite your person when you are.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        item { ConnectionCard(selfLabel, partnerLabel, isPaired, onPair, onNudge) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("To do", openCount.toString(), Icons.Default.List, Modifier.weight(1f))
+                MetricCard("Done", completedCount.toString(), Icons.Default.CheckCircle, Modifier.weight(1f))
+                MetricCard("Spaces", spacesCount.toString(), Icons.Default.Favorite, Modifier.weight(1f))
+            }
+        }
+        item {
+            Text("Make a moment", style = MaterialTheme.typography.titleLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickActionCard("Add something", "A task or list item", Icons.Default.Add, Modifier.weight(1f), onAdd)
+                QuickActionCard("Plan a trip", "Get ready together", Icons.Default.FlightTakeoff, Modifier.weight(1f), onTravel)
+            }
+        }
+        if (nudges.isNotEmpty()) {
+            item { Text("A little note for you", style = MaterialTheme.typography.titleLarge) }
+            items(nudges, key = { it.id }) { nudge ->
+                LiveAttentionNudgeBanner(
+                    nudge = nudge,
+                    senderLabel = if (nudge.sender == MemberSlot.SELF) selfLabel else partnerLabel,
+                    onQuickReply = { onReplyNudge(nudge, it) }
+                )
+            }
+        }
+        val nextTasks = tasks.filterNot { it.isCompleted }.take(4)
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("In motion", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Text(nextTasks.size.toString() + " shown", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (nextTasks.isEmpty()) {
+            item { EmptyStateCard("Nothing pressing right now", "Enjoy the breathing room, or add a small thing you would like to remember.", "Add a task", onAdd) }
+        } else {
+            items(nextTasks, key = { it.id }) { task ->
+                TandemTaskCard(task, selfLabel, partnerLabel, { onToggleTask(task) }, { onReact(task, it) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun SharedListsScreen(
+    modifier: Modifier, spaces: List<SpaceEntity>, selectedSpaceId: String?, selectedMode: ListMode?,
+    tasks: List<TaskItemEntity>, selfLabel: String, partnerLabel: String,
+    onSelectSpace: (String?) -> Unit, onSelectMode: (ListMode?) -> Unit,
+    onNewSpace: () -> Unit, onAdd: () -> Unit,
+    onToggleTask: (TaskItemEntity) -> Unit, onReact: (TaskItemEntity, String) -> Unit
+) {
+    LazyColumn(modifier = modifier, contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Shared lists", style = MaterialTheme.typography.headlineLarge)
+                Text("Keep the little things from slipping through.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Your spaces", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = onNewSpace) { Text("New space") }
+            }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = selectedSpaceId == null, onClick = { onSelectSpace(null) }, label = { Text("Everything") })
+                spaces.forEach { space ->
+                    FilterChip(selected = selectedSpaceId == space.id, onClick = { onSelectSpace(space.id) }, label = { Text(space.name) })
                 }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "${item.mode.badge} • FOR ${assigneeText.uppercase()}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = badgeColor
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    textDecoration = if (item.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (item.isCompleted) MutedPewter else IvoryText
-                )
-                if (item.note.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = item.note, style = MaterialTheme.typography.bodyMedium, color = MutedPewter)
+        }
+        item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = selectedMode == null, onClick = { onSelectMode(null) }, label = { Text("All types") })
+                ListMode.entries.forEach { mode ->
+                    FilterChip(selected = selectedMode == mode, onClick = { onSelectMode(mode) }, label = { Text(mode.label) })
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("On it", "Done soon", "Need hand").forEach { chip ->
-                        val active = item.reactionChip == chip
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (active) ChampagneGold else ElevatedSlate)
-                                .clickable { onReact(chip) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = chip,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (active) ObsidianBg else IvoryText
-                            )
+            }
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Your shared items", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = onAdd) { Icon(Icons.Default.Add, null); Text("Add") }
+            }
+        }
+        if (tasks.isEmpty()) {
+            item { EmptyStateCard("A fresh page", "Add a task, a shopping item, or something to ask your partner.", "Add an item", onAdd) }
+        } else {
+            items(tasks, key = { it.id }) { task ->
+                TandemTaskCard(task, selfLabel, partnerLabel, { onToggleTask(task) }, { onReact(task, it) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun RitualsScreen(
+    modifier: Modifier, rituals: List<RitualCheckInEntity>, isPaired: Boolean, partnerLabel: String,
+    onAdd: () -> Unit, onToggleToday: (RitualCheckInEntity) -> Unit
+) {
+    LazyColumn(modifier = modifier, contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Little rituals", style = MaterialTheme.typography.headlineLarge)
+                Text("Small moments become your favourite traditions.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Favorite, null, tint = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Consistency, not perfection.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        Text("Check in when you make time for each other.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    }
+                }
+            }
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Your rituals", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Button(onClick = onAdd) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("Add") }
+            }
+        }
+        if (rituals.isEmpty()) {
+            item { EmptyStateCard("Start with one small ritual", "A good-morning message, an evening walk, or ten minutes without phones.", "Create a ritual", onAdd) }
+        } else {
+            items(rituals, key = { it.id }) { ritual ->
+                Card {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(ritual.title, style = MaterialTheme.typography.titleMedium)
+                                if (ritual.timeWindow.isNotBlank()) Text(ritual.timeWindow, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (ritual.streakDays > 0) {
+                                AssistChip(onClick = {}, label = { Text(ritual.streakDays.toString() + " day streak") }, leadingIcon = { Icon(Icons.Default.Favorite, null) })
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = ritual.selfDoneToday, onCheckedChange = { onToggleToday(ritual) })
+                            Text(if (ritual.selfDoneToday) "You checked in today" else "I did this today", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        }
+                        if (isPaired) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(if (ritual.partnerDoneToday) Icons.Default.CheckCircle else Icons.Default.Schedule, null, tint = if (ritual.partnerDoneToday) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.width(8.dp))
+                                Text(if (ritual.partnerDoneToday) partnerLabel + " checked in today" else "Waiting for " + partnerLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun TravelHubScreen(modifier: Modifier, onOpenTravel: () -> Unit) {
+    LazyColumn(modifier = modifier, contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item {
+            Text("Travel together", style = MaterialTheme.typography.headlineLarge)
+            Text("A calmer departure starts with a shared plan.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.FlightTakeoff, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(34.dp))
+                    Text("Leave the last-minute rush behind.", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Create a departure plan, choose who is travelling, tick off essentials together, and let the traveller's phone handle local reminders.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Button(onClick = onOpenTravel) { Text("Open Travel Prep"); Icon(Icons.Default.ArrowForward, null) }
+                }
+            }
+        }
+        item {
+            Text("How it works", style = MaterialTheme.typography.titleLarge)
+            FeatureLine(Icons.Default.People, "Shared plans", "Both people see the same departure and checklist.")
+            FeatureLine(Icons.Default.NotificationsActive, "Native reminders", "The traveller receives reminders on their own Android device.")
+            FeatureLine(Icons.Default.Sync, "Background catch-up", "Changes are reconciled when a device reconnects.")
+        }
+    }
+}
+
+@Composable
+private fun ProfileScreen(
+    modifier: Modifier, name: String, email: String, partnerName: String, isPaired: Boolean,
+    onEditProfile: () -> Unit, onSignOut: () -> Unit
+) {
+    LazyColumn(modifier = modifier, contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Text("Your space", style = MaterialTheme.typography.headlineLarge)
+            Text("The people and preferences behind your Tandem.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        item {
+            Card {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+                    Text(name, style = MaterialTheme.typography.titleLarge)
+                    if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (isPaired) "Connected with " + partnerName else "Your space is currently solo", style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = onEditProfile, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.PersonAdd, null); Spacer(Modifier.width(8.dp)); Text(if (isPaired) "Manage connection" else "Invite your person")
+                    }
+                }
+            }
+        }
+        item {
+            OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Logout, null); Spacer(Modifier.width(8.dp)); Text("Sign out")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionCard(selfLabel: String, partnerLabel: String, isPaired: Boolean, onPair: () -> Unit, onNudge: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = if (isPaired) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(if (isPaired) Icons.Default.People else Icons.Default.PersonAdd, null, tint = if (isPaired) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(if (isPaired) selfLabel + " + " + partnerLabel else "Make it a shared space", style = MaterialTheme.typography.titleMedium)
+                Text(if (isPaired) "Your shared space is connected." else "Invite your person to share plans, lists and rituals.", style = MaterialTheme.typography.bodySmall, color = if (isPaired) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (isPaired) IconButton(onClick = onNudge) { Icon(Icons.Default.NotificationsActive, contentDescription = "Send a nudge") }
+            else TextButton(onClick = onPair) { Text("Invite") }
+        }
+    }
+}
+
+@Composable
+private fun MetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    Card(modifier = modifier) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+            Text(value, style = MaterialTheme.typography.headlineMedium)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun QuickActionCard(
+    title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier, onClick: () -> Unit
+) {
+    Card(modifier = modifier.clickable(onClick = onClick)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun FeatureLine(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, description: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun EmptyStateCard(title: String, message: String, actionLabel: String, onAction: () -> Unit) {
+    Card {
+        Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = onAction) { Text(actionLabel); Icon(Icons.Default.ArrowForward, null) }
+        }
+    }
+}
+
+@Composable
+private fun TandemTaskCard(
+    item: TaskItemEntity, selfLabel: String, partnerLabel: String,
+    onToggle: () -> Unit, onReact: (String) -> Unit
+) {
+    val assignee = when (item.assignedTo) {
+        MemberSlot.SELF -> selfLabel
+        MemberSlot.PARTNER -> partnerLabel
+        MemberSlot.BOTH -> "Both of you"
+    }
+    var reactionMenu by remember { mutableStateOf(false) }
+    Card {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = item.isCompleted, onCheckedChange = { onToggle() })
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(item.title, style = MaterialTheme.typography.titleMedium, textDecoration = if (item.isCompleted) TextDecoration.LineThrough else TextDecoration.None)
+                    if (item.note.isNotBlank()) Text(item.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Box {
+                    IconButton(onClick = { reactionMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Task reactions") }
+                    DropdownMenu(expanded = reactionMenu, onDismissRequest = { reactionMenu = false }) {
+                        listOf("On it", "Done soon", "Need hand").forEach { reaction ->
+                            DropdownMenuItem(
+                                text = { Text(if (item.reactionChip == reaction) "✓ " + reaction else reaction) },
+                                onClick = { onReact(reaction); reactionMenu = false }
+                            )
+                        }
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                AssistChip(onClick = {}, label = { Text(item.mode.label) })
+                AssistChip(onClick = {}, label = { Text(assignee) })
+                if (item.urgency == UrgencyLevel.URGENT_PING) {
+                    AssistChip(onClick = {}, label = { Text("Needs attention") }, leadingIcon = { Icon(Icons.Default.NotificationsActive, null) })
+                }
+            }
+            if (item.isCompleted) Text("Done", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+            else if (!item.reactionChip.isNullOrBlank()) Text(item.reactionChip.orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun AddRitualDialog(onDismiss: () -> Unit, onCreate: (String, String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var timeWindow by remember { mutableStateOf("Every evening") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create a little ritual") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("What will you do together?") }, singleLine = true)
+                OutlinedTextField(value = timeWindow, onValueChange = { timeWindow = it }, label = { Text("When? (optional)") }, singleLine = true)
+            }
+        },
+        confirmButton = { Button(onClick = { onCreate(title.trim(), timeWindow.trim()) }, enabled = title.isNotBlank()) { Text("Create ritual") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable
