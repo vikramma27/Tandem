@@ -10,7 +10,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import app.tandem.duo.MainActivity
+import app.tandem.duo.travel.TravelPrepActivity
+import app.tandem.duo.R
 import app.tandem.duo.R
 
 object TravelReminderScheduler {
@@ -46,7 +47,11 @@ object TravelReminderScheduler {
             context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+        } else {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+        }
     }
 
     fun cancel(context: Context, plan: TravelPlan) {
@@ -85,7 +90,7 @@ class TravelReminderReceiver : BroadcastReceiver() {
         }
         val openApp = PendingIntent.getActivity(
             context, plan.id.hashCode(),
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            Intent(context, TravelPrepActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, TravelReminderScheduler.CHANNEL_ID)
