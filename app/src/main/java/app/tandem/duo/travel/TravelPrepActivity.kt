@@ -31,6 +31,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import app.tandem.duo.ui.theme.TandemTheme
 import app.tandem.duo.data.remote.TandemSupabase
 import app.tandem.duo.data.remote.TravelPlanRecord
@@ -313,12 +315,14 @@ private suspend fun syncRemotePlans(
 
 @Composable
 private fun CreateTravelPlanDialog(
+    recipientOptions: List<Pair<String, String>>,
     onDismiss: () -> Unit,
-    onCreate: (String, String, Long, Long, List<TravelChecklistItem>) -> Unit
+    onCreate: (String, String, String, Long, Long, List<TravelChecklistItem>) -> Unit
 ) {
     val context = LocalContext.current
     var title by remember { mutableStateOf("") }
-    var recipient by remember { mutableStateOf("Partner") }
+    var recipientId by remember { mutableStateOf(recipientOptions.firstOrNull()?.first.orEmpty()) }
+    var recipientLabel by remember { mutableStateOf(recipientOptions.firstOrNull()?.second.orEmpty()) }
     var departureMillis by remember { mutableLongStateOf(Calendar.getInstance().apply { add(Calendar.HOUR_OF_DAY, 3); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }.timeInMillis) }
     var reminderLead by remember { mutableIntStateOf(60) }
     var checklistText by remember { mutableStateOf("Phone and charger\nWallet / ID\nKeys\nTickets / booking details\nWater bottle\nMedicines / essentials") }
@@ -330,7 +334,16 @@ private fun CreateTravelPlanDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Trip / reason") }, singleLine = true)
-                OutlinedTextField(value = recipient, onValueChange = { recipient = it }, label = { Text("Who is travelling?") }, singleLine = true)
+                Text("Who is travelling?", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    recipientOptions.forEach { option ->
+                        FilterChip(
+                            selected = recipientId == option.first,
+                            onClick = { recipientId = option.first; recipientLabel = option.second },
+                            label = { Text(option.second) }
+                        )
+                    }
+                }
                 OutlinedButton(onClick = {
                     val current = Calendar.getInstance().apply { timeInMillis = departureMillis }
                     DatePickerDialog(context, { _, y, m, d ->
@@ -364,10 +377,10 @@ private fun CreateTravelPlanDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = title.isNotBlank() && recipient.isNotBlank() && departureMillis > System.currentTimeMillis() + reminderLead * 60_000L,
+                enabled = title.isNotBlank() && recipientId.isNotBlank() && departureMillis > System.currentTimeMillis() + reminderLead * 60_000L,
                 onClick = {
                     val tasks = checklistText.lines().map { it.trim() }.filter { it.isNotBlank() }.distinct().map { TravelChecklistItem(title = it) }
-                    onCreate(title.trim(), recipient.trim(), departureMillis, departureMillis - reminderLead * 60_000L, tasks)
+                    onCreate(title.trim(), recipientId, recipientLabel, departureMillis, departureMillis - reminderLead * 60_000L, tasks)
                 }
             ) { Text("SAVE & SCHEDULE") }
         },
